@@ -67,6 +67,7 @@ import com.example.ui.components.AppActionDialog
 import com.example.ui.components.AppDrawerSheet
 import com.example.ui.components.AppPickerDialog
 import com.example.ui.components.BottomActionBar
+import com.example.ui.components.BottomSlotCustomizationDialog
 import com.example.ui.components.ClockHeader
 import com.example.ui.components.FocusAppList
 import com.example.ui.components.RenameAppDialog
@@ -302,8 +303,8 @@ fun LauncherRootScreen(
     var appPickerSlotIndex by remember { mutableIntStateOf(-1) } // 0-4 for focus, 10-12 for bottom
     var bottomSlotToRemap by remember { mutableStateOf<BottomSlot?>(null) }
 
-    // Horizontal Pager: Page 0 = Utility & Health, Page 1 = Main Home
-    val pagerState = rememberPagerState(initialPage = 1, pageCount = { 2 })
+    // Horizontal Pager: Page 0 = Utility & Health, Page 1 = Main Home, Page 2 = All Apps
+    val pagerState = rememberPagerState(initialPage = 1, pageCount = { 3 })
 
     // Handle system back press
     BackHandler {
@@ -311,7 +312,7 @@ fun LauncherRootScreen(
             isDrawerOpen = false
         } else if (isSettingsOpen) {
             isSettingsOpen = false
-        } else if (pagerState.currentPage == 0) {
+        } else if (pagerState.currentPage != 1) {
             coroutineScope.launch { pagerState.animateScrollToPage(1) }
         }
     }
@@ -339,10 +340,11 @@ fun LauncherRootScreen(
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
             ) {
+                // Page 0: Utility
                 Row(
                     modifier = Modifier
                         .clickable { coroutineScope.launch { pagerState.animateScrollToPage(0) } }
-                        .padding(horizontal = 8.dp, vertical = 2.dp)
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
                         .testTag("page_tab_utility"),
                     verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                 ) {
@@ -356,7 +358,7 @@ fun LauncherRootScreen(
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     androidx.compose.material3.Text(
-                        text = "UTILITY",
+                        text = "UTILITIES",
                         style = androidx.compose.ui.text.TextStyle(
                             fontSize = 10.sp,
                             fontWeight = if (pagerState.currentPage == 0) androidx.compose.ui.text.font.FontWeight.Bold else androidx.compose.ui.text.font.FontWeight.Normal,
@@ -366,12 +368,13 @@ fun LauncherRootScreen(
                     )
                 }
 
-                Spacer(modifier = Modifier.width(16.dp))
+                Spacer(modifier = Modifier.width(12.dp))
 
+                // Page 1: Home
                 Row(
                     modifier = Modifier
                         .clickable { coroutineScope.launch { pagerState.animateScrollToPage(1) } }
-                        .padding(horizontal = 8.dp, vertical = 2.dp)
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
                         .testTag("page_tab_home"),
                     verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                 ) {
@@ -390,6 +393,36 @@ fun LauncherRootScreen(
                             fontSize = 10.sp,
                             fontWeight = if (pagerState.currentPage == 1) androidx.compose.ui.text.font.FontWeight.Bold else androidx.compose.ui.text.font.FontWeight.Normal,
                             color = if (pagerState.currentPage == 1) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                            letterSpacing = 1.sp
+                        )
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(12.dp))
+
+                // Page 2: Apps
+                Row(
+                    modifier = Modifier
+                        .clickable { coroutineScope.launch { pagerState.animateScrollToPage(2) } }
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                        .testTag("page_tab_apps"),
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(if (pagerState.currentPage == 2) 6.dp else 4.dp)
+                            .background(
+                                color = if (pagerState.currentPage == 2) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
+                                shape = CircleShape
+                            )
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    androidx.compose.material3.Text(
+                        text = "APPS",
+                        style = androidx.compose.ui.text.TextStyle(
+                            fontSize = 10.sp,
+                            fontWeight = if (pagerState.currentPage == 2) androidx.compose.ui.text.font.FontWeight.Bold else androidx.compose.ui.text.font.FontWeight.Normal,
+                            color = if (pagerState.currentPage == 2) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
                             letterSpacing = 1.sp
                         )
                     )
@@ -439,34 +472,14 @@ fun LauncherRootScreen(
                         )
                     }
                     1 -> {
-                        // Center Main Home View with 4-way gesture navigation (Swipe Right -> Browser, Swipe Left -> Utility, Swipe Up -> Drawer, Swipe Down -> Notifications)
+                        // Center Main Home View
                         var totalDragX by remember { mutableFloatStateOf(0f) }
                         var totalDragY by remember { mutableFloatStateOf(0f) }
-
-                        val executeSwipe = { action: String, customPkg: String ->
-                            when (action.lowercase()) {
-                                "browser" -> AppManager.launchBrowser(context, preferredPackage = customPkg.ifBlank { settings.searchEnginePackage })
-                                "utility" -> coroutineScope.launch { pagerState.animateScrollToPage(0) }
-                                "camera" -> AppManager.launchDefaultAction(context, "camera")
-                                "phone", "dialer" -> AppManager.launchDefaultAction(context, "phone")
-                                "messages", "sms" -> AppManager.launchDefaultAction(context, "messages")
-                                "search" -> AppManager.launchSearch(context, preferredPackage = settings.searchEnginePackage)
-                                "drawer" -> isDrawerOpen = true
-                                "custom" -> {
-                                    if (customPkg.isNotBlank()) {
-                                        AppManager.launchApp(context, customPkg)
-                                    } else {
-                                        AppManager.launchBrowser(context)
-                                    }
-                                }
-                                else -> AppManager.launchBrowser(context)
-                            }
-                        }
 
                         Column(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .pointerInput(settings.swipeRightAction, settings.swipeLeftAction, settings.swipeRightPackage, settings.swipeLeftPackage) {
+                                .pointerInput(Unit) {
                                     detectDragGestures(
                                         onDragStart = {
                                             totalDragX = 0f
@@ -485,16 +498,16 @@ fun LauncherRootScreen(
 
                                             if (absX > absY && absX > 40f) {
                                                 if (totalDragX > 0) {
-                                                    // Swipe Right -> Open Browser (default)
-                                                    executeSwipe(settings.swipeRightAction, settings.swipeRightPackage)
+                                                    // Swipe Right -> Go to Utilities (Page 0)
+                                                    coroutineScope.launch { pagerState.animateScrollToPage(0) }
                                                 } else {
-                                                    // Swipe Left -> Open Utility Dashboard (default)
-                                                    executeSwipe(settings.swipeLeftAction, settings.swipeLeftPackage)
+                                                    // Swipe Left -> Go to App List (Page 2)
+                                                    coroutineScope.launch { pagerState.animateScrollToPage(2) }
                                                 }
                                             } else if (absY > absX && absY > 40f) {
                                                 if (totalDragY < 0) {
-                                                    // Swipe Up -> Open App Drawer
-                                                    isDrawerOpen = true
+                                                    // Swipe Up -> Go to App List (Page 2)
+                                                    coroutineScope.launch { pagerState.animateScrollToPage(2) }
                                                 } else {
                                                     // Swipe Down -> Expand Notifications Shade
                                                     AppManager.expandNotificationShade(context)
@@ -510,68 +523,95 @@ fun LauncherRootScreen(
                                     )
                                 }
                         ) {
-                        // Top Header (Clock, Date, Focus Mode Selector, Weather Widget)
-                        ClockHeader(
-                            settings = settings,
-                            focusProfiles = focusProfiles,
-                            activeProfileId = settings.activeProfileId,
-                            widgetSlots = widgetSlots,
-                            appWidgetHost = app.appWidgetHost,
-                            onSelectProfile = { viewModel.selectFocusProfile(it) },
-                            onManageProfiles = { isSettingsOpen = true },
-                            onPickWeatherWidget = {
-                                onStartWidgetPick(AppWidgetHostManager.SLOT_HEADER_WEATHER)
-                            },
-                            onRemoveWeatherWidget = {
-                                val slot = widgetSlots.find { it.slotKey == AppWidgetHostManager.SLOT_HEADER_WEATHER }
-                                if (slot != null) {
-                                    viewModel.removeWidgetSlot(AppWidgetHostManager.SLOT_HEADER_WEATHER, slot.appWidgetId)
+                            // Top Header (Clock, Date, Focus Mode Selector, Weather Widget)
+                            ClockHeader(
+                                settings = settings,
+                                focusProfiles = focusProfiles,
+                                activeProfileId = settings.activeProfileId,
+                                widgetSlots = widgetSlots,
+                                appWidgetHost = app.appWidgetHost,
+                                onSelectProfile = { viewModel.selectFocusProfile(it) },
+                                onManageProfiles = { isSettingsOpen = true },
+                                onPickWeatherWidget = {
+                                    onStartWidgetPick(AppWidgetHostManager.SLOT_HEADER_WEATHER)
+                                },
+                                onRemoveWeatherWidget = {
+                                    val slot = widgetSlots.find { it.slotKey == AppWidgetHostManager.SLOT_HEADER_WEATHER }
+                                    if (slot != null) {
+                                        viewModel.removeWidgetSlot(AppWidgetHostManager.SLOT_HEADER_WEATHER, slot.appWidgetId)
+                                    }
                                 }
-                            }
-                        )
+                            )
 
-                        Spacer(modifier = Modifier.weight(0.5f))
+                            Spacer(modifier = Modifier.weight(0.5f))
 
-                        // Center: 5 Focus Mode Text Apps
-                        FocusAppList(
-                            focusApps = activeFocusApps,
+                            // Center: 5 Focus Mode Text Apps
+                            FocusAppList(
+                                focusApps = activeFocusApps,
+                                clockFont = settings.clockFont,
+                                onAppClick = { appItem ->
+                                    AppManager.launchApp(context, appItem.packageName, appItem.userHandle)
+                                },
+                                onAppLongClick = { appItem ->
+                                    selectedAppForAction = appItem
+                                },
+                                onAddSlotClick = { slotIndex ->
+                                    appPickerSlotIndex = slotIndex
+                                }
+                            )
+
+                            Spacer(modifier = Modifier.weight(1f))
+
+                            // Bottom: 4 Fixed Icons (Phone, Messages, Camera, Settings by default - fully customizable)
+                            BottomActionBar(
+                                bottomSlots = bottomSlots,
+                                clockFont = settings.clockFont,
+                                onSlotClick = { slot ->
+                                    if (slot.packageName.isNotBlank()) {
+                                        AppManager.launchApp(context, slot.packageName)
+                                    } else if (slot.defaultType.lowercase() == "settings" || slot.iconName.lowercase() == "settings") {
+                                        isSettingsOpen = true
+                                    } else {
+                                        val success = AppManager.launchDefaultAction(context, slot.defaultType)
+                                        if (!success) {
+                                            bottomSlotToRemap = slot
+                                        }
+                                    }
+                                },
+                                onSlotLongClick = { slot ->
+                                    bottomSlotToRemap = slot
+                                }
+                            )
+                        }
+                    }
+                    2 -> {
+                        // Right Panel: App List Drawer
+                        AppDrawerSheet(
+                            mainApps = filteredApps,
+                            privateApps = privateSpaceApps,
+                            recentApps = recentApps,
                             clockFont = settings.clockFont,
+                            isPrivateSpaceLocked = isOsPrivateSpaceLocked,
+                            osPrivateProfileHandle = osPrivateProfileHandle,
                             onAppClick = { appItem ->
                                 AppManager.launchApp(context, appItem.packageName, appItem.userHandle)
                             },
                             onAppLongClick = { appItem ->
                                 selectedAppForAction = appItem
                             },
-                            onAddSlotClick = { slotIndex ->
-                                appPickerSlotIndex = slotIndex
+                            onTogglePrivateSpace = { handle ->
+                                viewModel.toggleOsPrivateSpace(context, handle)
+                            },
+                            onCloseDrawer = {
+                                coroutineScope.launch { pagerState.animateScrollToPage(1) }
+                            },
+                            onSearchWeb = { query ->
+                                AppManager.launchSearch(context, query, settings.searchEnginePackage)
                             }
-                        )
-
-                        Spacer(modifier = Modifier.weight(1f))
-
-                        // Bottom: 3 Customizable Action Apps + Settings Button
-                        BottomActionBar(
-                            bottomSlots = bottomSlots,
-                            clockFont = settings.clockFont,
-                            onSlotClick = { slot ->
-                                if (slot.packageName.isNotBlank()) {
-                                    AppManager.launchApp(context, slot.packageName)
-                                } else {
-                                    val success = AppManager.launchDefaultAction(context, slot.defaultType)
-                                    if (!success) {
-                                        bottomSlotToRemap = slot
-                                    }
-                                }
-                            },
-                            onSlotLongClick = { slot ->
-                                bottomSlotToRemap = slot
-                            },
-                            onSettingsClick = { isSettingsOpen = true }
                         )
                     }
                 }
             }
-        }
         }
 
         // Fullscreen Slide-Up App Drawer
@@ -697,15 +737,19 @@ fun LauncherRootScreen(
             )
         }
 
-        // Remap Bottom Slot Dialog
+        // Customize Bottom Slot Dialog
         if (bottomSlotToRemap != null) {
             val slot = bottomSlotToRemap!!
-            AppPickerDialog(
-                title = "Remap ${slot.defaultType.ifBlank { "Slot" }} Shortcut",
+            BottomSlotCustomizationDialog(
+                slot = slot,
                 allApps = enrichedApps,
                 clockFont = settings.clockFont,
-                onAppSelected = { chosenApp ->
-                    viewModel.setBottomSlot(slot.slotIndex, chosenApp.packageName, chosenApp.displayLabel)
+                onSave = { pkg, label, defType, iconName ->
+                    viewModel.setBottomSlot(slot.slotIndex, pkg, label, defType, iconName)
+                    bottomSlotToRemap = null
+                },
+                onReset = {
+                    viewModel.resetBottomSlot(slot.slotIndex)
                     bottomSlotToRemap = null
                 },
                 onDismiss = { bottomSlotToRemap = null }

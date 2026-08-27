@@ -1,10 +1,16 @@
 package com.example.ui.components
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,6 +20,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -26,13 +33,11 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
-import androidx.compose.material.icons.outlined.Fingerprint
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.HourglassBottom
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.LockOpen
 import androidx.compose.material.icons.outlined.Search
-import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -40,7 +45,9 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -48,8 +55,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
@@ -58,6 +70,7 @@ import androidx.compose.ui.unit.sp
 import com.example.data.ClockFont
 import com.example.model.AppInfoItem
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -101,6 +114,49 @@ fun AppDrawerSheet(
     }
 
     val alphabetList = remember { ('A'..'Z').toList() + listOf('#') }
+
+    // Map each letter to exact index in LazyColumn
+    val letterIndexMap = remember(groupedApps, recentApps, searchQuery) {
+        val map = mutableMapOf<Char, Int>()
+        var curIndex = if (searchQuery.isBlank() && recentApps.isNotEmpty()) 1 else 0
+        groupedApps.forEach { (charHeader, appsUnderChar) ->
+            map[charHeader] = curIndex
+            curIndex += 1 + appsUnderChar.size
+        }
+        map
+    }
+
+    // Determine current active letter based on LazyColumn first visible index
+    val activeLetter by remember(letterIndexMap) {
+        derivedStateOf {
+            val currentIndex = listState.firstVisibleItemIndex
+            var closestLetter: Char? = null
+            for ((letter, itemIdx) in letterIndexMap.entries.sortedBy { it.value }) {
+                if (itemIdx <= currentIndex) {
+                    closestLetter = letter
+                } else {
+                    break
+                }
+            }
+            closestLetter ?: letterIndexMap.keys.firstOrNull()
+        }
+    }
+
+    val jumpToLetter: (Char) -> Unit = { letter ->
+        // Try exact match or nearest following letter
+        val targetIndex = letterIndexMap[letter] ?: run {
+            val availableLetters = letterIndexMap.keys.toList()
+            val nextLetter = availableLetters.firstOrNull { it >= letter }
+                ?: availableLetters.lastOrNull()
+            if (nextLetter != null) letterIndexMap[nextLetter] else null
+        }
+
+        if (targetIndex != null) {
+            coroutineScope.launch {
+                listState.scrollToItem(targetIndex)
+            }
+        }
+    }
 
     Column(
         modifier = modifier
@@ -211,7 +267,7 @@ fun AppDrawerSheet(
                 state = listState,
                 modifier = Modifier
                     .weight(1f)
-                    .padding(start = 20.dp, end = 8.dp)
+                    .padding(start = 20.dp, end = 4.dp)
                     .testTag("app_drawer_list")
             ) {
                 if (searchQuery.isBlank() && recentApps.isNotEmpty()) {
@@ -423,42 +479,170 @@ fun AppDrawerSheet(
                 }
             }
 
-            if (searchQuery.isBlank()) {
-                Column(
-                    modifier = Modifier
-                        .width(28.dp)
-                        .fillMaxHeight()
-                        .padding(end = 4.dp),
-                    verticalArrangement = Arrangement.SpaceEvenly,
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    alphabetList.forEach { letter ->
-                        Text(
-                            text = letter.toString(),
-                            style = TextStyle(
-                                fontFamily = fontFamily,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                            ),
-                            modifier = Modifier
-                                .clickable {
-                                    val index = visibleMainApps.indexOfFirst {
-                                        val firstChar = it.displayLabel.firstOrNull()?.uppercaseChar() ?: '#'
-                                        val targetChar = if (firstChar in 'A'..'Z') firstChar else '#'
-                                        targetChar == letter
-                                    }
-                                    if (index >= 0) {
-                                        coroutineScope.launch {
-                                            // Approximation
-                                            listState.scrollToItem(index)
-                                        }
-                                    }
-                                }
-                                .padding(vertical = 1.dp, horizontal = 4.dp)
-                        )
-                    }
+            if (searchQuery.isBlank() && visibleMainApps.isNotEmpty()) {
+                ProgressiveAlphabetIndexBar(
+                    alphabetList = alphabetList,
+                    activeLetter = activeLetter,
+                    onLetterSelected = jumpToLetter,
+                    fontFamily = fontFamily,
+                    modifier = Modifier.padding(end = 4.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun ProgressiveAlphabetIndexBar(
+    alphabetList: List<Char>,
+    activeLetter: Char?,
+    onLetterSelected: (Char) -> Unit,
+    fontFamily: FontFamily,
+    modifier: Modifier = Modifier
+) {
+    var draggingY by remember { mutableFloatStateOf(-1f) }
+    var totalHeight by remember { mutableFloatStateOf(1f) }
+    val density = LocalDensity.current
+
+    val targetIndexFloat = remember(draggingY, totalHeight, activeLetter, alphabetList) {
+        if (draggingY >= 0f && totalHeight > 0f) {
+            val fraction = (draggingY / totalHeight).coerceIn(0f, 1f)
+            (fraction * (alphabetList.size - 1)).coerceIn(0f, (alphabetList.size - 1).toFloat())
+        } else if (activeLetter != null) {
+            val idx = alphabetList.indexOf(activeLetter)
+            if (idx >= 0) idx.toFloat() else -1f
+        } else {
+            -1f
+        }
+    }
+
+    Box(
+        modifier = modifier
+            .width(36.dp)
+            .fillMaxHeight()
+            .onGloballyPositioned { coordinates ->
+                if (coordinates.size.height > 0) {
+                    totalHeight = coordinates.size.height.toFloat()
                 }
+            }
+            .pointerInput(alphabetList) {
+                detectVerticalDragGestures(
+                    onDragStart = { offset ->
+                        draggingY = offset.y
+                        val fraction = (offset.y / totalHeight).coerceIn(0f, 1f)
+                        val index = (fraction * (alphabetList.size - 1)).toInt().coerceIn(0, alphabetList.size - 1)
+                        onLetterSelected(alphabetList[index])
+                    },
+                    onVerticalDrag = { change, _ ->
+                        change.consume()
+                        draggingY = change.position.y
+                        val fraction = (change.position.y / totalHeight).coerceIn(0f, 1f)
+                        val index = (fraction * (alphabetList.size - 1)).toInt().coerceIn(0, alphabetList.size - 1)
+                        onLetterSelected(alphabetList[index])
+                    },
+                    onDragEnd = {
+                        draggingY = -1f
+                    },
+                    onDragCancel = {
+                        draggingY = -1f
+                    }
+                )
+            }
+            .testTag("alphabet_index_bar"),
+        contentAlignment = Alignment.CenterEnd
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxHeight()
+                .padding(vertical = 4.dp),
+            verticalArrangement = Arrangement.SpaceEvenly,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            alphabetList.forEachIndexed { i, letter ->
+                val distance = if (targetIndexFloat >= 0f) abs(i.toFloat() - targetIndexFloat) else 99f
+
+                // Progressive fisheye zoom scale
+                val scale by animateFloatAsState(
+                    targetValue = when {
+                        distance <= 0.6f -> 1.75f
+                        distance <= 1.6f -> 1.35f
+                        distance <= 2.6f -> 1.15f
+                        else -> 1.0f
+                    },
+                    animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+                    label = "letter_scale_$letter"
+                )
+
+                val isSelected = distance <= 0.6f
+                val isNearby = distance <= 1.6f
+
+                val textColor by animateColorAsState(
+                    targetValue = when {
+                        isSelected -> MaterialTheme.colorScheme.primary
+                        isNearby -> MaterialTheme.colorScheme.onSurface
+                        else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
+                    },
+                    label = "letter_color_$letter"
+                )
+
+                Box(
+                    modifier = Modifier
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            onLetterSelected(letter)
+                        }
+                        .graphicsLayer {
+                            scaleX = scale
+                            scaleY = scale
+                            if (isSelected) {
+                                translationX = -8.dp.toPx()
+                            } else if (isNearby) {
+                                translationX = -4.dp.toPx()
+                            }
+                        }
+                        .padding(horizontal = 4.dp, vertical = 0.5.dp)
+                        .testTag("alphabet_letter_$letter"),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = letter.toString(),
+                        style = TextStyle(
+                            fontFamily = fontFamily,
+                            fontSize = 10.sp,
+                            fontWeight = if (isSelected) FontWeight.ExtraBold else if (isNearby) FontWeight.Bold else FontWeight.Medium,
+                            color = textColor
+                        )
+                    )
+                }
+            }
+        }
+
+        // Floating Magnifier Indicator during touch drag
+        if (draggingY >= 0f && targetIndexFloat >= 0f) {
+            val activeIdx = targetIndexFloat.toInt().coerceIn(0, alphabetList.size - 1)
+            val currentLetter = alphabetList[activeIdx]
+            val bubbleYOffset = (draggingY / density.density).dp - 24.dp
+
+            Box(
+                modifier = Modifier
+                    .offset(x = (-44).dp, y = bubbleYOffset)
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primary)
+                    .border(1.dp, MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.4f), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = currentLetter.toString(),
+                    style = TextStyle(
+                        fontFamily = fontFamily,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Black,
+                        color = MaterialTheme.colorScheme.onPrimary
+                    )
+                )
             }
         }
     }

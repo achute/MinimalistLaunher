@@ -26,7 +26,7 @@ import kotlinx.coroutines.launch
         BottomSlot::class,
         WidgetSlot::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -105,13 +105,14 @@ abstract class AppDatabase : RoomDatabase() {
                 // Prepopulate default sample tasks
                 dao.insertTask(TaskItem(title = "Welcome to Minimalist Launcher", isDone = false, timestamp = System.currentTimeMillis()))
                 dao.insertTask(TaskItem(title = "Swipe left to check utility & screen time", isDone = false, timestamp = System.currentTimeMillis() - 1000))
-                dao.insertTask(TaskItem(title = "Swipe up for all apps drawer", isDone = false, timestamp = System.currentTimeMillis() - 2000))
+                dao.insertTask(TaskItem(title = "Swipe right to open all apps drawer", isDone = false, timestamp = System.currentTimeMillis() - 2000))
                 dao.insertTask(TaskItem(title = "Tap weather slot to attach a 3rd party widget", isDone = false, timestamp = System.currentTimeMillis() - 3000))
 
-                // Prepopulate default bottom slots (Phone, Messages, Camera)
-                dao.insertBottomSlot(BottomSlot(slotIndex = 0, packageName = "", customLabel = "Phone", defaultType = "phone"))
-                dao.insertBottomSlot(BottomSlot(slotIndex = 1, packageName = "", customLabel = "Messages", defaultType = "messages"))
-                dao.insertBottomSlot(BottomSlot(slotIndex = 2, packageName = "", customLabel = "Camera", defaultType = "camera"))
+                // Prepopulate default 4 bottom slots (Phone, Messages, Camera, Settings)
+                dao.insertBottomSlot(BottomSlot(slotIndex = 0, packageName = "", customLabel = "Phone", defaultType = "phone", iconName = "phone"))
+                dao.insertBottomSlot(BottomSlot(slotIndex = 1, packageName = "", customLabel = "Messages", defaultType = "messages", iconName = "messages"))
+                dao.insertBottomSlot(BottomSlot(slotIndex = 2, packageName = "", customLabel = "Camera", defaultType = "camera", iconName = "camera"))
+                dao.insertBottomSlot(BottomSlot(slotIndex = 3, packageName = "", customLabel = "Settings", defaultType = "settings", iconName = "settings"))
 
                 // Prepopulate widget slots
                 dao.insertWidgetSlot(WidgetSlot(slotKey = "HEADER_WEATHER", appWidgetId = -1, isCustomWidgetEnabled = false))

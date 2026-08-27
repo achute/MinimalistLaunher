@@ -104,6 +104,7 @@ import com.example.data.ClockFont
 import com.example.data.LauncherSettings
 import com.example.data.LauncherTheme
 import com.example.model.AppInfoItem
+import com.example.model.BottomSlot
 import com.example.model.FocusProfile
 import com.example.model.OpenSourceLibrariesData
 import com.example.model.OpenSourceLibrary
@@ -222,7 +223,7 @@ fun AppActionDialog(
                 ActionRowItem(
                     icon = Icons.Outlined.Tune,
                     title = "Assign to Bottom Action Bar",
-                    subtitle = "Replace Phone, Messages, or Camera default action",
+                    subtitle = "Replace Phone, Messages, Camera, or Settings slot",
                     fontFamily = fontFamily,
                     onClick = { showBottomSubmenu = !showBottomSubmenu }
                 )
@@ -231,10 +232,10 @@ fun AppActionDialog(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                            .padding(horizontal = 4.dp, vertical = 4.dp),
                         horizontalArrangement = Arrangement.SpaceEvenly
                     ) {
-                        listOf("SLOT 1", "SLOT 2", "SLOT 3").forEachIndexed { idx, label ->
+                        listOf("SLOT 1", "SLOT 2", "SLOT 3", "SLOT 4").forEachIndexed { idx, label ->
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(6.dp))
@@ -244,7 +245,7 @@ fun AppActionDialog(
                                         onSetAsBottomSlot(idx)
                                         onDismiss()
                                     }
-                                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                                    .padding(horizontal = 8.dp, vertical = 6.dp)
                             ) {
                                 Text(
                                     text = label,
@@ -1944,5 +1945,301 @@ private fun SystemActionCard(
                 style = TextStyle(fontFamily = fontFamily, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary)
             )
         }
+    }
+}
+
+// 11. Bottom Slot Customization Dialog (Allow customizing 4 bottom icons, custom text & icons)
+@Composable
+fun BottomSlotCustomizationDialog(
+    slot: BottomSlot,
+    allApps: List<AppInfoItem>,
+    clockFont: ClockFont,
+    onSave: (packageName: String, customLabel: String, defaultType: String, iconName: String) -> Unit,
+    onReset: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    val fontFamily = remember(clockFont) { FontManager.resolveFontFamily(context, clockFont) }
+
+    var selectedDefaultType by remember { mutableStateOf(slot.defaultType) }
+    var selectedPackageName by remember { mutableStateOf(slot.packageName) }
+    var customLabelText by remember { mutableStateOf(slot.customLabel.ifBlank { slot.defaultType.replaceFirstChar { it.uppercase() } }) }
+    var selectedIconName by remember { mutableStateOf(slot.iconName.ifBlank { slot.defaultType }) }
+    var showAppPicker by remember { mutableStateOf(false) }
+
+    val defaultActions = listOf(
+        Triple("phone", "Phone", "phone"),
+        Triple("messages", "Messages", "messages"),
+        Triple("camera", "Camera", "camera"),
+        Triple("settings", "Settings", "settings"),
+        Triple("browser", "Browser", "browser"),
+        Triple("search", "Search", "search")
+    )
+
+    val availableIcons = listOf(
+        "phone", "messages", "camera", "settings", "browser", "search",
+        "mail", "music", "star", "heart", "folder", "terminal",
+        "apps", "clock", "navigation", "bookmark"
+    )
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Customize Bottom Slot 0${slot.slotIndex + 1}",
+                style = TextStyle(
+                    fontFamily = fontFamily,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                // Preset Default Action Shortcuts
+                Text(
+                    text = "ACTION OR APP TARGET",
+                    style = TextStyle(
+                        fontFamily = fontFamily,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                )
+
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    defaultActions.forEach { (type, label, icon) ->
+                        val isSelected = selectedDefaultType == type && selectedPackageName.isBlank()
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+                                .border(
+                                    0.5.dp,
+                                    if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+                                    RoundedCornerShape(8.dp)
+                                )
+                                .clickable {
+                                    selectedDefaultType = type
+                                    selectedPackageName = ""
+                                    customLabelText = label
+                                    selectedIconName = icon
+                                }
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = resolveBottomSlotIcon(icon),
+                                    contentDescription = null,
+                                    tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(
+                                    text = "Default $label Action",
+                                    style = TextStyle(
+                                        fontFamily = fontFamily,
+                                        fontSize = 12.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                    )
+                                )
+                            }
+                            if (isSelected) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Check,
+                                    contentDescription = "Selected",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    // Choose Specific Installed App
+                    val isCustomApp = selectedPackageName.isNotBlank()
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (isCustomApp) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+                            .border(
+                                0.5.dp,
+                                if (isCustomApp) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+                                RoundedCornerShape(8.dp)
+                            )
+                            .clickable { showAppPicker = true }
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = resolveBottomSlotIcon(selectedIconName),
+                                contentDescription = null,
+                                tint = if (isCustomApp) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = if (isCustomApp) "App: ${selectedPackageName.substringAfterLast('.')}" else "Pick Installed Application...",
+                                    style = TextStyle(
+                                        fontFamily = fontFamily,
+                                        fontSize = 12.sp,
+                                        fontWeight = if (isCustomApp) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (isCustomApp) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                    )
+                                )
+                                if (isCustomApp) {
+                                    Text(
+                                        text = selectedPackageName,
+                                        style = TextStyle(
+                                            fontFamily = fontFamily,
+                                            fontSize = 9.sp,
+                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                                        )
+                                    )
+                                }
+                            }
+                        }
+
+                        Text(
+                            text = if (isCustomApp) "[CHANGE]" else "[BROWSE]",
+                            style = TextStyle(
+                                fontFamily = fontFamily,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        )
+                    }
+                }
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+
+                // Custom Text Label Input
+                Text(
+                    text = "CUSTOM DISPLAY LABEL",
+                    style = TextStyle(
+                        fontFamily = fontFamily,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                )
+
+                OutlinedTextField(
+                    value = customLabelText,
+                    onValueChange = { customLabelText = it },
+                    label = { Text("Display Name / Accessibility Label", style = TextStyle(fontFamily = fontFamily)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    textStyle = TextStyle(fontFamily = fontFamily, fontSize = 13.sp)
+                )
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+
+                // Custom Icon Selector
+                Text(
+                    text = "SELECT ICON SYMBOL",
+                    style = TextStyle(
+                        fontFamily = fontFamily,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                )
+
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    availableIcons.chunked(4).forEach { rowIcons ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            rowIcons.forEach { iconKey ->
+                                val isSelected = selectedIconName == iconKey
+                                Box(
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                        .border(
+                                            0.5.dp,
+                                            if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+                                            RoundedCornerShape(8.dp)
+                                        )
+                                        .clickable { selectedIconName = iconKey },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = resolveBottomSlotIcon(iconKey),
+                                        contentDescription = iconKey,
+                                        tint = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    onSave(
+                        selectedPackageName,
+                        customLabelText.trim(),
+                        selectedDefaultType,
+                        selectedIconName
+                    )
+                },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                )
+            ) {
+                Text("Save", style = TextStyle(fontFamily = fontFamily, fontWeight = FontWeight.Bold))
+            }
+        },
+        dismissButton = {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                TextButton(onClick = onReset) {
+                    Text("Reset Default", style = TextStyle(fontFamily = fontFamily, color = Color(0xFFFF5555)))
+                }
+                TextButton(onClick = onDismiss) {
+                    Text("Cancel", style = TextStyle(fontFamily = fontFamily))
+                }
+            }
+        }
+    )
+
+    if (showAppPicker) {
+        AppPickerDialog(
+            title = "Select App for Slot 0${slot.slotIndex + 1}",
+            allApps = allApps,
+            clockFont = clockFont,
+            onAppSelected = { app ->
+                selectedPackageName = app.packageName
+                selectedDefaultType = "custom"
+                customLabelText = app.displayLabel
+                selectedIconName = "apps"
+                showAppPicker = false
+            },
+            onDismiss = { showAppPicker = false }
+        )
     }
 }

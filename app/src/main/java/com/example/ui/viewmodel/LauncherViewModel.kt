@@ -212,10 +212,19 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
 
         val slots = dao.getAllBottomSlotsDirect()
-        if (slots.isEmpty()) {
-            dao.insertBottomSlot(BottomSlot(slotIndex = 0, packageName = "", customLabel = "Phone", defaultType = "phone"))
-            dao.insertBottomSlot(BottomSlot(slotIndex = 1, packageName = "", customLabel = "Messages", defaultType = "messages"))
-            dao.insertBottomSlot(BottomSlot(slotIndex = 2, packageName = "", customLabel = "Camera", defaultType = "camera"))
+        if (slots.size < 4) {
+            val defaultSlots = listOf(
+                BottomSlot(slotIndex = 0, packageName = "", customLabel = "Phone", defaultType = "phone", iconName = "phone"),
+                BottomSlot(slotIndex = 1, packageName = "", customLabel = "Messages", defaultType = "messages", iconName = "messages"),
+                BottomSlot(slotIndex = 2, packageName = "", customLabel = "Camera", defaultType = "camera", iconName = "camera"),
+                BottomSlot(slotIndex = 3, packageName = "", customLabel = "Settings", defaultType = "settings", iconName = "settings")
+            )
+            defaultSlots.forEach { defaultSlot ->
+                val existing = slots.find { it.slotIndex == defaultSlot.slotIndex }
+                if (existing == null) {
+                    dao.insertBottomSlot(defaultSlot)
+                }
+            }
         }
 
         val wSlots = dao.getAllWidgetSlotsDirect()
@@ -398,15 +407,36 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     // Bottom Slot Configuration
-    fun setBottomSlot(slotIndex: Int, packageName: String, customLabel: String) {
+    fun setBottomSlot(
+        slotIndex: Int,
+        packageName: String,
+        customLabel: String,
+        defaultType: String = "",
+        iconName: String = ""
+    ) {
         viewModelScope.launch(Dispatchers.IO) {
             dao.insertBottomSlot(
                 BottomSlot(
                     slotIndex = slotIndex,
                     packageName = packageName,
-                    customLabel = customLabel
+                    customLabel = customLabel,
+                    defaultType = defaultType,
+                    iconName = iconName
                 )
             )
+        }
+    }
+
+    fun resetBottomSlot(slotIndex: Int) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val defaultSlot = when (slotIndex) {
+                0 -> BottomSlot(0, "", "Phone", "phone", "phone")
+                1 -> BottomSlot(1, "", "Messages", "messages", "messages")
+                2 -> BottomSlot(2, "", "Camera", "camera", "camera")
+                3 -> BottomSlot(3, "", "Settings", "settings", "settings")
+                else -> BottomSlot(slotIndex, "", "App", "app", "apps")
+            }
+            dao.insertBottomSlot(defaultSlot)
         }
     }
 

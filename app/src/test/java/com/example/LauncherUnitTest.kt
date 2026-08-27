@@ -84,4 +84,13 @@ class LauncherUnitTest {
         assertEquals("browser", settings.swipeRightAction)
         assertEquals("utility", settings.swipeLeftAction)
     }
+
+    @Test
+    fun testBottomSlotModel() {
+        val slot = BottomSlot(slotIndex = 0, defaultType = "phone", iconName = "phone")
+        assertEquals(0, slot.slotIndex)
+        assertEquals("phone", slot.defaultType)
+        assertEquals("phone", slot.iconName)
+        assertEquals("", slot.packageName)
+    }
 }

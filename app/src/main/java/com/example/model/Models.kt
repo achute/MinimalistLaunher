@@ -51,10 +51,11 @@ data class CustomAppLabel(
 
 @Entity(tableName = "bottom_slots")
 data class BottomSlot(
-    @PrimaryKey val slotIndex: Int, // 0: Left, 1: Middle, 2: Right
-    val packageName: String,
+    @PrimaryKey val slotIndex: Int, // 0: Phone, 1: Messages, 2: Camera, 3: Settings
+    val packageName: String = "",
     val customLabel: String = "",
-    val defaultType: String = "" // "phone", "messages", "camera"
+    val defaultType: String = "", // "phone", "messages", "camera", "settings", "browser", "search", "custom"
+    val iconName: String = "" // "phone", "messages", "camera", "settings", "browser", "search", "email", "music", etc.
 )
 
 @Entity(tableName = "widget_slots")
