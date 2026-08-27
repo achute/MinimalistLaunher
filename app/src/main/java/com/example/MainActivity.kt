@@ -74,6 +74,7 @@ import com.example.ui.components.RenameAppDialog
 import com.example.ui.components.SetLimitDialog
 import com.example.ui.components.SettingsDialog
 import com.example.ui.components.UtilityDashboard
+import com.example.ui.components.WidgetPickerDialog
 import com.example.ui.theme.MinimalistLauncherTheme
 import com.example.ui.viewmodel.LauncherViewModel
 import com.example.util.AppManager
@@ -83,13 +84,15 @@ import kotlinx.coroutines.launch
 
 class MainActivity : FragmentActivity() {
 
+    companion object {
+        private const val REQUEST_BIND_WIDGET = 1001
+        private const val REQUEST_CONFIG_WIDGET = 1002
+    }
+
     private val viewModel: LauncherViewModel by viewModels()
 
     private var pendingWidgetSlotKey: String? = null
     private var pendingAppWidgetId: Int = -1
-
-    private lateinit var widgetPickerLauncher: ActivityResultLauncher<Intent>
-    private lateinit var widgetConfigLauncher: ActivityResultLauncher<Intent>
 
     private val launcherAppsCallback = object : android.content.pm.LauncherApps.Callback() {
         override fun onPackageAdded(packageName: String, user: android.os.UserHandle) { viewModel.refreshInstalledApps() }
@@ -115,65 +118,6 @@ class MainActivity : FragmentActivity() {
         val appWidgetHost = app.appWidgetHost
         val appWidgetManager = AppWidgetManager.getInstance(this)
 
-        // Register Widget Pick Activity Result Launcher
-        widgetPickerLauncher = registerForActivityResult(
-            ActivityResultContracts.StartActivityForResult()
-        ) { result ->
-            if (result.resultCode == Activity.RESULT_OK) {
-                val appWidgetId = result.data?.getIntExtra(
-                    AppWidgetManager.EXTRA_APPWIDGET_ID,
-                    pendingAppWidgetId
-                ) ?: pendingAppWidgetId
-
-                if (appWidgetId != -1) {
-                    AppWidgetHostManager.handlePickResult(
-                        context = this,
-                        appWidgetId = appWidgetId,
-                        appWidgetManager = appWidgetManager,
-                        configLauncher = widgetConfigLauncher,
-                        onSuccess = { configuredId ->
-                            pendingWidgetSlotKey?.let { slotKey ->
-                                viewModel.setWidgetSlot(slotKey, configuredId)
-                            }
-                        },
-                        onError = {
-                            AppWidgetHostManager.deleteAppWidgetId(appWidgetHost, appWidgetId)
-                        }
-                    )
-                }
-            } else {
-                // User cancelled widget pick
-                if (pendingAppWidgetId != -1) {
-                    AppWidgetHostManager.deleteAppWidgetId(appWidgetHost, pendingAppWidgetId)
-                    pendingAppWidgetId = -1
-                }
-            }
-        }
-
-        // Register Widget Configuration Activity Result Launcher
-        widgetConfigLauncher = registerForActivityResult(
-            ActivityResultContracts.StartActivityForResult()
-        ) { result ->
-            if (result.resultCode == Activity.RESULT_OK) {
-                val appWidgetId = result.data?.getIntExtra(
-                    AppWidgetManager.EXTRA_APPWIDGET_ID,
-                    pendingAppWidgetId
-                ) ?: pendingAppWidgetId
-
-                if (appWidgetId != -1) {
-                    pendingWidgetSlotKey?.let { slotKey ->
-                        viewModel.setWidgetSlot(slotKey, appWidgetId)
-                    }
-                }
-            } else {
-                // Config cancelled
-                if (pendingAppWidgetId != -1) {
-                    AppWidgetHostManager.deleteAppWidgetId(appWidgetHost, pendingAppWidgetId)
-                    pendingAppWidgetId = -1
-                }
-            }
-        }
-
         val launcherApps = getSystemService(Context.LAUNCHER_APPS_SERVICE) as android.content.pm.LauncherApps
         launcherApps.registerCallback(launcherAppsCallback)
 
@@ -187,18 +131,14 @@ class MainActivity : FragmentActivity() {
                 }
             }
 
+            var showWidgetPicker by remember { mutableStateOf(false) }
+
             MinimalistLauncherTheme(theme = settings.theme, fontFamily = activeFontFamily) {
                 LauncherRootScreen(
                     viewModel = viewModel,
                     onStartWidgetPick = { slotKey ->
                         pendingWidgetSlotKey = slotKey
-                        AppWidgetHostManager.startWidgetPicker(
-                            host = appWidgetHost,
-                            pickerLauncher = widgetPickerLauncher,
-                            onAllocated = { allocatedId ->
-                                pendingAppWidgetId = allocatedId
-                            }
-                        )
+                        showWidgetPicker = true
                     },
                     onTriggerBiometric = {
                         BiometricAuthHelper.authenticate(
@@ -214,6 +154,68 @@ class MainActivity : FragmentActivity() {
                         )
                     }
                 )
+
+                if (showWidgetPicker) {
+                    WidgetPickerDialog(
+                        onDismiss = {
+                            showWidgetPicker = false
+                            pendingWidgetSlotKey = null
+                        },
+                        onWidgetSelected = { providerInfo ->
+                            showWidgetPicker = false
+                            val allocatedId = AppWidgetHostManager.allocateAppWidgetId(appWidgetHost)
+                            if (allocatedId != -1) {
+                                com.example.widget.WidgetDiagnosticLogger.logBindAttempt(allocatedId, providerInfo)
+                                val bound = try {
+                                    appWidgetManager.bindAppWidgetIdIfAllowed(allocatedId, providerInfo.provider)
+                                } catch (e: Exception) {
+                                    android.util.Log.e("WidgetDiagnostic", "Exception during bindAppWidgetIdIfAllowed", e)
+                                    false
+                                }
+                                com.example.widget.WidgetDiagnosticLogger.logBindResult(bound, allocatedId, providerInfo)
+                                
+                                if (bound) {
+                                    pendingAppWidgetId = allocatedId
+                                    AppWidgetHostManager.handlePickResult(
+                                        context = this@MainActivity,
+                                        appWidgetId = allocatedId,
+                                        appWidgetManager = appWidgetManager,
+                                        onLaunchConfig = { configIntent ->
+                                            startActivityForResult(configIntent, REQUEST_CONFIG_WIDGET)
+                                        },
+                                        onSuccess = { configuredId ->
+                                            pendingWidgetSlotKey?.let { slotKey ->
+                                                viewModel.setWidgetSlot(slotKey, configuredId)
+                                            }
+                                            pendingWidgetSlotKey = null
+                                        },
+                                        onError = {
+                                            AppWidgetHostManager.deleteAppWidgetId(appWidgetHost, allocatedId)
+                                            pendingWidgetSlotKey = null
+                                        }
+                                    )
+                                } else {
+                                    // Request permission to bind the widget
+                                    pendingAppWidgetId = allocatedId
+                                    val intent = Intent(AppWidgetManager.ACTION_APPWIDGET_BIND).apply {
+                                        putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, allocatedId)
+                                        putExtra(AppWidgetManager.EXTRA_APPWIDGET_PROVIDER, providerInfo.provider)
+                                    }
+                                    try {
+                                        startActivityForResult(intent, REQUEST_BIND_WIDGET)
+                                    } catch (e: Exception) {
+                                        com.example.widget.WidgetDiagnosticLogger.logBindIntentLaunchFailure(e)
+                                        AppWidgetHostManager.deleteAppWidgetId(appWidgetHost, allocatedId)
+                                        Toast.makeText(this@MainActivity, "Failed to bind widget: ${e.message}", Toast.LENGTH_LONG).show()
+                                        pendingWidgetSlotKey = null
+                                    }
+                                }
+                            } else {
+                                Toast.makeText(this@MainActivity, "Failed to allocate Widget ID", Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    )
+                }
             }
         }
     }
@@ -256,6 +258,59 @@ class MainActivity : FragmentActivity() {
         try {
             unregisterReceiver(profileReceiver)
         } catch (e: Exception) {}
+    }
+
+
+    @Deprecated("Deprecated in Java")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        
+        val app = application as MinimalistApp
+        val appWidgetHost = app.appWidgetHost
+        val appWidgetManager = AppWidgetManager.getInstance(this)
+        
+        if (requestCode == REQUEST_BIND_WIDGET) {
+            val appWidgetId = data?.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, pendingAppWidgetId) ?: pendingAppWidgetId
+            if (resultCode == android.app.Activity.RESULT_OK && appWidgetId != -1) {
+                com.example.widget.AppWidgetHostManager.handlePickResult(
+                    context = this,
+                    appWidgetId = appWidgetId,
+                    appWidgetManager = appWidgetManager,
+                    onLaunchConfig = { configIntent ->
+                        startActivityForResult(configIntent, REQUEST_CONFIG_WIDGET)
+                    },
+                    onSuccess = { configuredId ->
+                        pendingWidgetSlotKey?.let { slotKey ->
+                            viewModel.setWidgetSlot(slotKey, configuredId)
+                        }
+                        pendingWidgetSlotKey = null
+                    },
+                    onError = {
+                        com.example.widget.AppWidgetHostManager.deleteAppWidgetId(appWidgetHost, appWidgetId)
+                        pendingWidgetSlotKey = null
+                    }
+                )
+            } else {
+                if (pendingAppWidgetId != -1) {
+                    com.example.widget.AppWidgetHostManager.deleteAppWidgetId(appWidgetHost, pendingAppWidgetId)
+                    pendingAppWidgetId = -1
+                }
+                pendingWidgetSlotKey = null
+            }
+        } else if (requestCode == REQUEST_CONFIG_WIDGET) {
+            val appWidgetId = data?.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, pendingAppWidgetId) ?: pendingAppWidgetId
+            if (resultCode == android.app.Activity.RESULT_OK && appWidgetId != -1) {
+                pendingWidgetSlotKey?.let { slotKey ->
+                    viewModel.setWidgetSlot(slotKey, appWidgetId)
+                }
+            } else {
+                if (pendingAppWidgetId != -1) {
+                    com.example.widget.AppWidgetHostManager.deleteAppWidgetId(appWidgetHost, pendingAppWidgetId)
+                    pendingAppWidgetId = -1
+                }
+            }
+            pendingWidgetSlotKey = null
+        }
     }
 
     override fun onDestroy() {
