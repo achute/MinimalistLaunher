@@ -476,10 +476,47 @@ fun LauncherRootScreen(
                         var totalDragX by remember { mutableFloatStateOf(0f) }
                         var totalDragY by remember { mutableFloatStateOf(0f) }
 
+                        val executeGestureAction: (String, String) -> Unit = { action, customPkg ->
+                            when (action.lowercase().trim()) {
+                                "apps", "drawer" -> coroutineScope.launch { pagerState.animateScrollToPage(2) }
+                                "utility" -> coroutineScope.launch { pagerState.animateScrollToPage(0) }
+                                "home" -> coroutineScope.launch { pagerState.animateScrollToPage(1) }
+                                "browser" -> AppManager.launchBrowser(context, preferredPackage = customPkg.ifBlank { settings.searchEnginePackage })
+                                "search" -> AppManager.launchSearch(context, preferredPackage = settings.searchEnginePackage)
+                                "camera" -> AppManager.launchDefaultAction(context, "camera")
+                                "phone", "dialer" -> AppManager.launchDefaultAction(context, "phone")
+                                "messages", "sms" -> AppManager.launchDefaultAction(context, "messages")
+                                "notifications", "notification" -> AppManager.expandNotificationShade(context)
+                                "settings" -> isSettingsOpen = true
+                                "custom" -> {
+                                    if (customPkg.isNotBlank()) {
+                                        AppManager.launchApp(context, customPkg)
+                                    } else {
+                                        AppManager.launchBrowser(context)
+                                    }
+                                }
+                                "none" -> {}
+                                else -> {
+                                    if (customPkg.isNotBlank()) {
+                                        AppManager.launchApp(context, customPkg)
+                                    }
+                                }
+                            }
+                        }
+
                         Column(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .pointerInput(Unit) {
+                                .pointerInput(
+                                    settings.swipeUpAction,
+                                    settings.swipeUpPackage,
+                                    settings.swipeDownAction,
+                                    settings.swipeDownPackage,
+                                    settings.swipeRightAction,
+                                    settings.swipeRightPackage,
+                                    settings.swipeLeftAction,
+                                    settings.swipeLeftPackage
+                                ) {
                                     detectDragGestures(
                                         onDragStart = {
                                             totalDragX = 0f
@@ -498,19 +535,19 @@ fun LauncherRootScreen(
 
                                             if (absX > absY && absX > 40f) {
                                                 if (totalDragX > 0) {
-                                                    // Swipe Right -> Go to Utilities (Page 0)
-                                                    coroutineScope.launch { pagerState.animateScrollToPage(0) }
+                                                    // Swipe Right
+                                                    executeGestureAction(settings.swipeRightAction, settings.swipeRightPackage)
                                                 } else {
-                                                    // Swipe Left -> Go to App List (Page 2)
-                                                    coroutineScope.launch { pagerState.animateScrollToPage(2) }
+                                                    // Swipe Left
+                                                    executeGestureAction(settings.swipeLeftAction, settings.swipeLeftPackage)
                                                 }
                                             } else if (absY > absX && absY > 40f) {
                                                 if (totalDragY < 0) {
-                                                    // Swipe Up -> Go to App List (Page 2)
-                                                    coroutineScope.launch { pagerState.animateScrollToPage(2) }
+                                                    // Swipe Up
+                                                    executeGestureAction(settings.swipeUpAction, settings.swipeUpPackage)
                                                 } else {
-                                                    // Swipe Down -> Expand Notifications Shade
-                                                    AppManager.expandNotificationShade(context)
+                                                    // Swipe Down
+                                                    executeGestureAction(settings.swipeDownAction, settings.swipeDownPackage)
                                                 }
                                             }
                                             totalDragX = 0f
@@ -801,6 +838,10 @@ fun LauncherRootScreen(
                         )
                     }
                 },
+                onSelectSwipeUpAction = { viewModel.setSwipeUpAction(it) },
+                onSelectSwipeUpPackage = { viewModel.setSwipeUpPackage(it) },
+                onSelectSwipeDownAction = { viewModel.setSwipeDownAction(it) },
+                onSelectSwipeDownPackage = { viewModel.setSwipeDownPackage(it) },
                 onSelectSwipeRightAction = { viewModel.setSwipeRightAction(it) },
                 onSelectSwipeLeftAction = { viewModel.setSwipeLeftAction(it) },
                 onSelectSwipeRightPackage = { viewModel.setSwipeRightPackage(it) },

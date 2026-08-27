@@ -49,8 +49,12 @@ data class LauncherSettings(
     val showBatteryInUtility: Boolean = true,
     val useBatteryWidget: Boolean = false,
     val searchEnginePackage: String = "",
-    val swipeRightAction: String = "browser", // "browser", "utility", "phone", "camera", "search", "custom"
-    val swipeLeftAction: String = "utility",   // "utility", "browser", "camera", "phone", "search", "custom"
+    val swipeUpAction: String = "apps", // "apps", "browser", "utility", "search", "camera", "phone", "messages", "notifications", "settings", "custom", "none"
+    val swipeUpPackage: String = "",
+    val swipeDownAction: String = "notifications", // "notifications", "apps", "browser", "utility", "search", "camera", "phone", "messages", "settings", "custom", "none"
+    val swipeDownPackage: String = "",
+    val swipeRightAction: String = "utility", // "utility", "browser", "apps", "camera", "phone", "search", "custom"
+    val swipeLeftAction: String = "apps",   // "apps", "utility", "browser", "camera", "phone", "search", "custom"
     val swipeRightPackage: String = "",
     val swipeLeftPackage: String = ""
 )
@@ -72,6 +76,10 @@ class PreferencesManager(private val context: Context) {
         val SHOW_BATTERY_IN_UTILITY = booleanPreferencesKey("show_battery_in_utility")
         val USE_BATTERY_WIDGET = booleanPreferencesKey("use_battery_widget")
         val SEARCH_ENGINE_PACKAGE = stringPreferencesKey("search_engine_package")
+        val SWIPE_UP_ACTION = stringPreferencesKey("swipe_up_action")
+        val SWIPE_UP_PACKAGE = stringPreferencesKey("swipe_up_package")
+        val SWIPE_DOWN_ACTION = stringPreferencesKey("swipe_down_action")
+        val SWIPE_DOWN_PACKAGE = stringPreferencesKey("swipe_down_package")
         val SWIPE_RIGHT_ACTION = stringPreferencesKey("swipe_right_action")
         val SWIPE_LEFT_ACTION = stringPreferencesKey("swipe_left_action")
         val SWIPE_RIGHT_PACKAGE = stringPreferencesKey("swipe_right_package")
@@ -97,8 +105,12 @@ class PreferencesManager(private val context: Context) {
             showBatteryInUtility = preferences[Keys.SHOW_BATTERY_IN_UTILITY] ?: true,
             useBatteryWidget = preferences[Keys.USE_BATTERY_WIDGET] ?: false,
             searchEnginePackage = preferences[Keys.SEARCH_ENGINE_PACKAGE] ?: "",
-            swipeRightAction = preferences[Keys.SWIPE_RIGHT_ACTION] ?: "browser",
-            swipeLeftAction = preferences[Keys.SWIPE_LEFT_ACTION] ?: "utility",
+            swipeUpAction = preferences[Keys.SWIPE_UP_ACTION] ?: "apps",
+            swipeUpPackage = preferences[Keys.SWIPE_UP_PACKAGE] ?: "",
+            swipeDownAction = preferences[Keys.SWIPE_DOWN_ACTION] ?: "notifications",
+            swipeDownPackage = preferences[Keys.SWIPE_DOWN_PACKAGE] ?: "",
+            swipeRightAction = preferences[Keys.SWIPE_RIGHT_ACTION] ?: "utility",
+            swipeLeftAction = preferences[Keys.SWIPE_LEFT_ACTION] ?: "apps",
             swipeRightPackage = preferences[Keys.SWIPE_RIGHT_PACKAGE] ?: "",
             swipeLeftPackage = preferences[Keys.SWIPE_LEFT_PACKAGE] ?: ""
         )
@@ -154,6 +166,22 @@ class PreferencesManager(private val context: Context) {
 
     suspend fun updateSearchEnginePackage(pkg: String) {
         context.dataStore.edit { it[Keys.SEARCH_ENGINE_PACKAGE] = pkg }
+    }
+
+    suspend fun updateSwipeUpAction(action: String) {
+        context.dataStore.edit { it[Keys.SWIPE_UP_ACTION] = action }
+    }
+
+    suspend fun updateSwipeUpPackage(pkg: String) {
+        context.dataStore.edit { it[Keys.SWIPE_UP_PACKAGE] = pkg }
+    }
+
+    suspend fun updateSwipeDownAction(action: String) {
+        context.dataStore.edit { it[Keys.SWIPE_DOWN_ACTION] = action }
+    }
+
+    suspend fun updateSwipeDownPackage(pkg: String) {
+        context.dataStore.edit { it[Keys.SWIPE_DOWN_PACKAGE] = pkg }
     }
 
     suspend fun updateSwipeRightAction(action: String) {

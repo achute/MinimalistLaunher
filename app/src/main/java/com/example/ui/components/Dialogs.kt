@@ -602,6 +602,10 @@ fun SettingsDialog(
     onClearCustomFont: () -> Unit,
     onToggleApplyFontToAllUI: (Boolean) -> Unit,
     onTriggerBiometricTest: () -> Unit,
+    onSelectSwipeUpAction: (String) -> Unit = {},
+    onSelectSwipeUpPackage: (String) -> Unit = {},
+    onSelectSwipeDownAction: (String) -> Unit = {},
+    onSelectSwipeDownPackage: (String) -> Unit = {},
     onSelectSwipeRightAction: (String) -> Unit = {},
     onSelectSwipeLeftAction: (String) -> Unit = {},
     onSelectSwipeRightPackage: (String) -> Unit = {},
@@ -716,6 +720,10 @@ fun SettingsDialog(
                             settings = settings,
                             allApps = allApps,
                             fontFamily = fontFamily,
+                            onSelectSwipeUpAction = onSelectSwipeUpAction,
+                            onSelectSwipeUpPackage = onSelectSwipeUpPackage,
+                            onSelectSwipeDownAction = onSelectSwipeDownAction,
+                            onSelectSwipeDownPackage = onSelectSwipeDownPackage,
                             onSelectSwipeRightAction = onSelectSwipeRightAction,
                             onSelectSwipeLeftAction = onSelectSwipeLeftAction,
                             onSelectSwipeRightPackage = onSelectSwipeRightPackage,
@@ -770,21 +778,30 @@ private fun GesturesAndShortcutsTab(
     settings: LauncherSettings,
     allApps: List<AppInfoItem>,
     fontFamily: FontFamily,
+    onSelectSwipeUpAction: (String) -> Unit,
+    onSelectSwipeUpPackage: (String) -> Unit,
+    onSelectSwipeDownAction: (String) -> Unit,
+    onSelectSwipeDownPackage: (String) -> Unit,
     onSelectSwipeRightAction: (String) -> Unit,
     onSelectSwipeLeftAction: (String) -> Unit,
     onSelectSwipeRightPackage: (String) -> Unit,
     onSelectSwipeLeftPackage: (String) -> Unit,
     onSelectSearchEnginePackage: (String) -> Unit
 ) {
-    var pickingAppForGesture by remember { mutableStateOf<String?>(null) } // "right", "left", "search"
+    var pickingAppForGesture by remember { mutableStateOf<String?>(null) } // "up", "down", "right", "left", "search"
 
     val gestureOptions = listOf(
+        Triple("apps", "All Applications", "Navigate directly to full applications drawer list"),
         Triple("browser", "Web Browser", "Instantly open Google Chrome or default web browser"),
-        Triple("utility", "Utility & Health", "Quick battery monitor, task checklist & usage"),
-        Triple("phone", "Phone / Dialer", "Open default phone dialer keypad"),
+        Triple("utility", "Utility & Health", "Quick battery diagnostics, task checklist & screen time"),
+        Triple("search", "Web Search", "Launch web search or device assistant"),
+        Triple("notifications", "Notification Shade", "Expand Android system notifications & quick settings"),
         Triple("camera", "Camera", "Launch camera for quick photo capture"),
-        Triple("search", "Web Search", "Launch web search or assistant"),
-        Triple("custom", "Custom App", "Select any installed app to open on swipe")
+        Triple("phone", "Phone / Dialer", "Open default phone dialer keypad"),
+        Triple("messages", "Messages / SMS", "Open default messaging app"),
+        Triple("settings", "Launcher Settings", "Open launcher configuration preferences"),
+        Triple("custom", "Custom Installed App", "Select any installed app on your device"),
+        Triple("none", "Disabled", "Do nothing on this swipe gesture")
     )
 
     Column(
@@ -793,180 +810,122 @@ private fun GesturesAndShortcutsTab(
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Swipe Right Action (Directly addresses user requirement)
         Text(
-            text = "SWIPE RIGHT GESTURE (HOME SCREEN)",
+            text = "HOME SCREEN SWIPE GESTURES",
             style = TextStyle(fontFamily = fontFamily, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp, color = MaterialTheme.colorScheme.primary)
         )
 
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            gestureOptions.forEach { (actionKey, title, desc) ->
-                val isSelected = settings.swipeRightAction.equals(actionKey, ignoreCase = true)
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
-                        .border(
-                            0.5.dp,
-                            if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
-                            RoundedCornerShape(8.dp)
-                        )
-                        .clickable {
-                            onSelectSwipeRightAction(actionKey)
-                            if (actionKey == "custom" && settings.swipeRightPackage.isBlank()) {
-                                pickingAppForGesture = "right"
-                            }
-                        }
-                        .padding(10.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = title,
-                                style = TextStyle(
-                                    fontFamily = fontFamily,
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                                )
-                            )
-                            if (actionKey == "custom" && isSelected && settings.swipeRightPackage.isNotBlank()) {
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "[${settings.swipeRightPackage.substringAfterLast('.')}]",
-                                    style = TextStyle(fontFamily = fontFamily, fontSize = 10.sp, color = MaterialTheme.colorScheme.primary)
-                                )
-                            }
-                        }
-                        Text(
-                            text = desc,
-                            style = TextStyle(
-                                fontFamily = fontFamily,
-                                fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                            )
-                        )
-                    }
+        Text(
+            text = "Customize the action performed when swiping in each direction on the main home screen.",
+            style = TextStyle(fontFamily = fontFamily, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+        )
 
-                    if (actionKey == "custom" && isSelected) {
-                        Text(
-                            text = if (settings.swipeRightPackage.isBlank()) "[CHOOSE]" else "[CHANGE]",
-                            style = TextStyle(fontFamily = fontFamily, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary),
-                            modifier = Modifier
-                                .clickable { pickingAppForGesture = "right" }
-                                .padding(4.dp)
-                        )
-                    } else if (isSelected) {
-                        Icon(imageVector = Icons.Outlined.Check, contentDescription = "Selected", tint = MaterialTheme.colorScheme.primary)
-                    }
+        // 1. Swipe Up Gesture (Configurable - default: Apps, or Browser/Search/etc.)
+        GestureSectionCard(
+            title = "↑  SWIPE UP GESTURE",
+            currentAction = settings.swipeUpAction,
+            customPackage = settings.swipeUpPackage,
+            options = gestureOptions,
+            fontFamily = fontFamily,
+            onSelectAction = { action ->
+                onSelectSwipeUpAction(action)
+                if (action == "custom" && settings.swipeUpPackage.isBlank()) {
+                    pickingAppForGesture = "up"
                 }
-            }
-        }
+            },
+            onPickApp = { pickingAppForGesture = "up" }
+        )
 
         HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
 
-        // Swipe Left Action
-        Text(
-            text = "SWIPE LEFT GESTURE (HOME SCREEN)",
-            style = TextStyle(fontFamily = fontFamily, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp, color = MaterialTheme.colorScheme.primary)
-        )
-
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            gestureOptions.forEach { (actionKey, title, desc) ->
-                val isSelected = settings.swipeLeftAction.equals(actionKey, ignoreCase = true)
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
-                        .border(
-                            0.5.dp,
-                            if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
-                            RoundedCornerShape(8.dp)
-                        )
-                        .clickable {
-                            onSelectSwipeLeftAction(actionKey)
-                            if (actionKey == "custom" && settings.swipeLeftPackage.isBlank()) {
-                                pickingAppForGesture = "left"
-                            }
-                        }
-                        .padding(10.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = title,
-                                style = TextStyle(
-                                    fontFamily = fontFamily,
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                                )
-                            )
-                            if (actionKey == "custom" && isSelected && settings.swipeLeftPackage.isNotBlank()) {
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "[${settings.swipeLeftPackage.substringAfterLast('.')}]",
-                                    style = TextStyle(fontFamily = fontFamily, fontSize = 10.sp, color = MaterialTheme.colorScheme.primary)
-                                )
-                            }
-                        }
-                        Text(
-                            text = desc,
-                            style = TextStyle(
-                                fontFamily = fontFamily,
-                                fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                            )
-                        )
-                    }
-
-                    if (actionKey == "custom" && isSelected) {
-                        Text(
-                            text = if (settings.swipeLeftPackage.isBlank()) "[CHOOSE]" else "[CHANGE]",
-                            style = TextStyle(fontFamily = fontFamily, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary),
-                            modifier = Modifier
-                                .clickable { pickingAppForGesture = "left" }
-                                .padding(4.dp)
-                        )
-                    } else if (isSelected) {
-                        Icon(imageVector = Icons.Outlined.Check, contentDescription = "Selected", tint = MaterialTheme.colorScheme.primary)
-                    }
+        // 2. Swipe Down Gesture (Configurable - default: Notification Shade, or Browser/Apps/etc.)
+        GestureSectionCard(
+            title = "↓  SWIPE DOWN GESTURE",
+            currentAction = settings.swipeDownAction,
+            customPackage = settings.swipeDownPackage,
+            options = gestureOptions,
+            fontFamily = fontFamily,
+            onSelectAction = { action ->
+                onSelectSwipeDownAction(action)
+                if (action == "custom" && settings.swipeDownPackage.isBlank()) {
+                    pickingAppForGesture = "down"
                 }
-            }
-        }
+            },
+            onPickApp = { pickingAppForGesture = "down" }
+        )
 
         HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
 
-        // System & Vertical Gestures Reference
+        // 3. Swipe Right Gesture (Configurable - default: Utility page 0, or Browser/etc.)
+        GestureSectionCard(
+            title = "→  SWIPE RIGHT GESTURE",
+            currentAction = settings.swipeRightAction,
+            customPackage = settings.swipeRightPackage,
+            options = gestureOptions,
+            fontFamily = fontFamily,
+            onSelectAction = { action ->
+                onSelectSwipeRightAction(action)
+                if (action == "custom" && settings.swipeRightPackage.isBlank()) {
+                    pickingAppForGesture = "right"
+                }
+            },
+            onPickApp = { pickingAppForGesture = "right" }
+        )
+
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+
+        // 4. Swipe Left Gesture (Configurable - default: Apps page 2, or Utility/Browser/etc.)
+        GestureSectionCard(
+            title = "←  SWIPE LEFT GESTURE",
+            currentAction = settings.swipeLeftAction,
+            customPackage = settings.swipeLeftPackage,
+            options = gestureOptions,
+            fontFamily = fontFamily,
+            onSelectAction = { action ->
+                onSelectSwipeLeftAction(action)
+                if (action == "custom" && settings.swipeLeftPackage.isBlank()) {
+                    pickingAppForGesture = "left"
+                }
+            },
+            onPickApp = { pickingAppForGesture = "left" }
+        )
+
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+
+        // Default Web Browser / Engine Preference
         Text(
-            text = "DEFAULT VERTICAL GESTURES",
+            text = "PREFERRED WEB BROWSER / SEARCH APP",
             style = TextStyle(fontFamily = fontFamily, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp, color = MaterialTheme.colorScheme.primary)
         )
 
-        Column(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(8.dp))
                 .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+                .border(0.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
                 .padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = "↑  Swipe Up:", style = TextStyle(fontFamily = fontFamily, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(text = "Opens All Apps Drawer with Instant Search", style = TextStyle(fontFamily = fontFamily, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = if (settings.searchEnginePackage.isBlank()) "System Default Browser" else settings.searchEnginePackage.substringAfterLast('.'),
+                    style = TextStyle(fontFamily = fontFamily, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
+                )
+                Text(
+                    text = "Used for web browser and web search gesture actions",
+                    style = TextStyle(fontFamily = fontFamily, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                )
             }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = "↓  Swipe Down:", style = TextStyle(fontFamily = fontFamily, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(text = "Expands Android Notification Shade", style = TextStyle(fontFamily = fontFamily, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface))
-            }
+
+            Text(
+                text = if (settings.searchEnginePackage.isBlank()) "[SELECT]" else "[CHANGE]",
+                style = TextStyle(fontFamily = fontFamily, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary),
+                modifier = Modifier
+                    .clickable { pickingAppForGesture = "search" }
+                    .padding(6.dp)
+            )
         }
 
         Spacer(modifier = Modifier.height(20.dp))
@@ -974,9 +933,11 @@ private fun GesturesAndShortcutsTab(
 
     if (pickingAppForGesture != null) {
         val title = when (pickingAppForGesture) {
-            "right" -> "Select App for Right Swipe"
-            "left" -> "Select App for Left Swipe"
-            else -> "Select Default Browser App"
+            "up" -> "Select App for Swipe Up"
+            "down" -> "Select App for Swipe Down"
+            "right" -> "Select App for Swipe Right"
+            "left" -> "Select App for Swipe Left"
+            else -> "Select Preferred Browser / Search App"
         }
         AppPickerDialog(
             title = title,
@@ -984,14 +945,151 @@ private fun GesturesAndShortcutsTab(
             clockFont = settings.clockFont,
             onAppSelected = { app ->
                 when (pickingAppForGesture) {
-                    "right" -> onSelectSwipeRightPackage(app.packageName)
-                    "left" -> onSelectSwipeLeftPackage(app.packageName)
+                    "up" -> {
+                        onSelectSwipeUpAction("custom")
+                        onSelectSwipeUpPackage(app.packageName)
+                    }
+                    "down" -> {
+                        onSelectSwipeDownAction("custom")
+                        onSelectSwipeDownPackage(app.packageName)
+                    }
+                    "right" -> {
+                        onSelectSwipeRightAction("custom")
+                        onSelectSwipeRightPackage(app.packageName)
+                    }
+                    "left" -> {
+                        onSelectSwipeLeftAction("custom")
+                        onSelectSwipeLeftPackage(app.packageName)
+                    }
                     "search" -> onSelectSearchEnginePackage(app.packageName)
                 }
                 pickingAppForGesture = null
             },
             onDismiss = { pickingAppForGesture = null }
         )
+    }
+}
+
+@Composable
+private fun GestureSectionCard(
+    title: String,
+    currentAction: String,
+    customPackage: String,
+    options: List<Triple<String, String, String>>,
+    fontFamily: FontFamily,
+    onSelectAction: (String) -> Unit,
+    onPickApp: () -> Unit
+) {
+    var isExpanded by remember { mutableStateOf(false) }
+    val currentOption = options.find { it.first.equals(currentAction, ignoreCase = true) } ?: options.first()
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+            .border(0.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(8.dp))
+            .padding(10.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { isExpanded = !isExpanded }
+                .padding(vertical = 4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = TextStyle(fontFamily = fontFamily, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp, color = MaterialTheme.colorScheme.primary)
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "Action: ${currentOption.second}",
+                        style = TextStyle(fontFamily = fontFamily, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
+                    )
+                    if (currentAction == "custom" && customPackage.isNotBlank()) {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "[${customPackage.substringAfterLast('.')}]",
+                            style = TextStyle(fontFamily = fontFamily, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                        )
+                    }
+                }
+            }
+
+            Text(
+                text = if (isExpanded) "[COLLAPSE]" else "[CHANGE]",
+                style = TextStyle(fontFamily = fontFamily, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+            )
+        }
+
+        if (isExpanded) {
+            Spacer(modifier = Modifier.height(8.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                options.forEach { (actionKey, optTitle, desc) ->
+                    val isSelected = currentAction.equals(actionKey, ignoreCase = true)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface)
+                            .border(
+                                0.5.dp,
+                                if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.15f),
+                                RoundedCornerShape(6.dp)
+                            )
+                            .clickable {
+                                onSelectAction(actionKey)
+                            }
+                            .padding(8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = optTitle,
+                                    style = TextStyle(
+                                        fontFamily = fontFamily,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                    )
+                                )
+                                if (actionKey == "custom" && isSelected && customPackage.isNotBlank()) {
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "[${customPackage.substringAfterLast('.')}]",
+                                        style = TextStyle(fontFamily = fontFamily, fontSize = 10.sp, color = MaterialTheme.colorScheme.primary)
+                                    )
+                                }
+                            }
+                            Text(
+                                text = desc,
+                                style = TextStyle(fontFamily = fontFamily, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                            )
+                        }
+
+                        if (actionKey == "custom" && isSelected) {
+                            Text(
+                                text = if (customPackage.isBlank()) "[CHOOSE]" else "[CHANGE]",
+                                style = TextStyle(fontFamily = fontFamily, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary),
+                                modifier = Modifier
+                                    .clickable { onPickApp() }
+                                    .padding(4.dp)
+                            )
+                        } else if (isSelected) {
+                            Icon(imageVector = Icons.Outlined.Check, contentDescription = "Selected", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 

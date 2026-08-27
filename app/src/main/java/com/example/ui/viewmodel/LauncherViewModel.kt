@@ -527,6 +527,22 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch { prefManager.updateUseBatteryWidget(useWidget) }
     }
 
+    fun setSwipeUpAction(action: String) {
+        viewModelScope.launch { prefManager.updateSwipeUpAction(action) }
+    }
+
+    fun setSwipeUpPackage(pkg: String) {
+        viewModelScope.launch { prefManager.updateSwipeUpPackage(pkg) }
+    }
+
+    fun setSwipeDownAction(action: String) {
+        viewModelScope.launch { prefManager.updateSwipeDownAction(action) }
+    }
+
+    fun setSwipeDownPackage(pkg: String) {
+        viewModelScope.launch { prefManager.updateSwipeDownPackage(pkg) }
+    }
+
     fun setSwipeRightAction(action: String) {
         viewModelScope.launch { prefManager.updateSwipeRightAction(action) }
     }
