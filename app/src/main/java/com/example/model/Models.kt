@@ -9,6 +9,7 @@ data class FocusProfile(
     val name: String,
     val isDndLinked: Boolean = false,
     val lockPrivateSpace: Boolean = true,
+    val requiresPrivateSpace: Boolean = false,
     val appPackage1: String = "",
     val appPackage2: String = "",
     val appPackage3: String = "",
@@ -78,7 +79,10 @@ data class AppInfoItem(
     val isPrivateProfile: Boolean = false
 ) {
     val displayLabel: String
-        get() = customLabel?.takeIf { it.isNotBlank() } ?: label
+        get() {
+            val base = customLabel?.takeIf { it.isNotBlank() } ?: label
+            return if (isPrivateProfile) "[PVT] $base" else base
+        }
 }
 
 data class DailyAppUsage(

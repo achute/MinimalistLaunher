@@ -55,6 +55,7 @@ fun ClockHeader(
     settings: LauncherSettings,
     focusProfiles: List<FocusProfile>,
     activeProfileId: Int,
+    isPrivateSpaceLocked: Boolean = true,
     widgetSlots: List<WidgetSlot>,
     appWidgetHost: AppWidgetHost,
     onSelectProfile: (Int) -> Unit,
@@ -150,6 +151,18 @@ fun ClockHeader(
                             color = MaterialTheme.colorScheme.primary
                         )
                     )
+                    if (activeProfile?.requiresPrivateSpace == true) {
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = if (isPrivateSpaceLocked) "[PVT • LOCKED]" else "[PVT]",
+                            style = TextStyle(
+                                fontFamily = clockFontFamily,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isPrivateSpaceLocked) MaterialTheme.colorScheme.error.copy(alpha = 0.8f) else MaterialTheme.colorScheme.primary
+                            )
+                        )
+                    }
                     Spacer(modifier = Modifier.width(4.dp))
                     Icon(
                         imageVector = Icons.Default.ArrowDropDown,
@@ -165,16 +178,35 @@ fun ClockHeader(
                     modifier = Modifier.background(MaterialTheme.colorScheme.surface)
                 ) {
                     focusProfiles.forEach { profile ->
+                        val isLockedPrivate = profile.requiresPrivateSpace && isPrivateSpaceLocked
                         DropdownMenuItem(
                             text = {
-                                Text(
-                                    text = profile.name,
-                                    style = TextStyle(
-                                        fontFamily = clockFontFamily,
-                                        fontWeight = if (profile.id == activeProfileId) FontWeight.Bold else FontWeight.Normal,
-                                        color = if (profile.id == activeProfileId) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = profile.name,
+                                        style = TextStyle(
+                                            fontFamily = clockFontFamily,
+                                            fontWeight = if (profile.id == activeProfileId) FontWeight.Bold else FontWeight.Normal,
+                                            color = if (profile.id == activeProfileId) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                        )
                                     )
-                                )
+                                    if (profile.requiresPrivateSpace) {
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = if (isLockedPrivate) "[PVT • LOCKED]" else "[PVT]",
+                                            style = TextStyle(
+                                                fontFamily = clockFontFamily,
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (isLockedPrivate) MaterialTheme.colorScheme.error.copy(alpha = 0.8f) else MaterialTheme.colorScheme.primary
+                                            )
+                                        )
+                                    }
+                                }
                             },
                             onClick = {
                                 onSelectProfile(profile.id)

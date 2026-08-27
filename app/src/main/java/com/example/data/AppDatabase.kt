@@ -26,7 +26,7 @@ import kotlinx.coroutines.launch
         BottomSlot::class,
         WidgetSlot::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -70,6 +70,8 @@ abstract class AppDatabase : RoomDatabase() {
                         id = 1,
                         name = "Deep Work",
                         isDndLinked = false,
+                        lockPrivateSpace = true,
+                        requiresPrivateSpace = false,
                         appPackage1 = "com.google.android.gm",
                         appPackage2 = "com.google.android.keep",
                         appPackage3 = "com.google.android.calendar",
@@ -82,6 +84,8 @@ abstract class AppDatabase : RoomDatabase() {
                         id = 2,
                         name = "Minimal",
                         isDndLinked = false,
+                        lockPrivateSpace = true,
+                        requiresPrivateSpace = false,
                         appPackage1 = "com.google.android.dialer",
                         appPackage2 = "com.google.android.apps.messaging",
                         appPackage3 = "com.google.android.keep",
@@ -94,9 +98,25 @@ abstract class AppDatabase : RoomDatabase() {
                         id = 3,
                         name = "Evening & Wind Down",
                         isDndLinked = true,
+                        lockPrivateSpace = true,
+                        requiresPrivateSpace = false,
                         appPackage1 = "com.google.android.apps.books",
                         appPackage2 = "com.google.android.apps.podcasts",
                         appPackage3 = "com.google.android.deskclock",
+                        appPackage4 = "",
+                        appPackage5 = ""
+                    )
+                )
+                dao.insertFocusProfile(
+                    FocusProfile(
+                        id = 4,
+                        name = "Private Vault",
+                        isDndLinked = false,
+                        lockPrivateSpace = false,
+                        requiresPrivateSpace = true,
+                        appPackage1 = "",
+                        appPackage2 = "",
+                        appPackage3 = "",
                         appPackage4 = "",
                         appPackage5 = ""
                     )

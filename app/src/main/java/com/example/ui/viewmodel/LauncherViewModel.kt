@@ -141,10 +141,19 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         if (activeProfile == null) return@combine emptyList()
 
         val activePkgs = activeProfile.getPackages()
-        val appMap = apps.associateBy { it.packageName }
 
-        activePkgs.mapNotNull { pkg ->
-            appMap[pkg] ?: AppInfoItem(packageName = pkg, label = pkg.substringAfterLast('.'))
+        activePkgs.mapNotNull { rawPkg ->
+            val isPvt = rawPkg.startsWith("pvt:")
+            val pkg = rawPkg.removePrefix("pvt:")
+            if (isPvt) {
+                apps.find { it.packageName == pkg && it.isPrivateProfile }
+                    ?: apps.find { it.packageName == pkg }
+                    ?: AppInfoItem(packageName = pkg, label = pkg.substringAfterLast('.'), isPrivateProfile = true)
+            } else {
+                apps.find { it.packageName == pkg && !it.isPrivateProfile }
+                    ?: apps.find { it.packageName == pkg }
+                    ?: AppInfoItem(packageName = pkg, label = pkg.substringAfterLast('.'))
+            }
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -178,6 +187,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                     id = 1,
                     name = "Deep Work",
                     isDndLinked = false,
+                    lockPrivateSpace = true,
+                    requiresPrivateSpace = false,
                     appPackage1 = "com.google.android.gm",
                     appPackage2 = "com.google.android.keep",
                     appPackage3 = "com.google.android.calendar",
@@ -190,6 +201,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                     id = 2,
                     name = "Minimal",
                     isDndLinked = false,
+                    lockPrivateSpace = true,
+                    requiresPrivateSpace = false,
                     appPackage1 = "com.google.android.dialer",
                     appPackage2 = "com.google.android.apps.messaging",
                     appPackage3 = "com.google.android.keep",
@@ -202,9 +215,25 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                     id = 3,
                     name = "Wind Down",
                     isDndLinked = true,
+                    lockPrivateSpace = true,
+                    requiresPrivateSpace = false,
                     appPackage1 = "com.google.android.apps.books",
                     appPackage2 = "com.google.android.apps.podcasts",
                     appPackage3 = "com.google.android.deskclock",
+                    appPackage4 = "",
+                    appPackage5 = ""
+                )
+            )
+            dao.insertFocusProfile(
+                FocusProfile(
+                    id = 4,
+                    name = "Private Vault",
+                    isDndLinked = false,
+                    lockPrivateSpace = false,
+                    requiresPrivateSpace = true,
+                    appPackage1 = "",
+                    appPackage2 = "",
+                    appPackage3 = "",
                     appPackage4 = "",
                     appPackage5 = ""
                 )
@@ -241,6 +270,21 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    private fun checkActiveProfilePrivateSpace(locked: Boolean) {
+        if (locked) {
+            val currentProfileId = settings.value.activeProfileId
+            val activeProfile = focusProfiles.value.find { it.id == currentProfileId }
+            if (activeProfile?.requiresPrivateSpace == true) {
+                val fallback = focusProfiles.value.find { !it.requiresPrivateSpace } ?: focusProfiles.value.firstOrNull()
+                if (fallback != null) {
+                    viewModelScope.launch {
+                        prefManager.updateActiveProfileId(fallback.id)
+                    }
+                }
+            }
+        }
+    }
+
     fun refreshInstalledApps() {
         viewModelScope.launch(Dispatchers.IO) {
             val apps = AppManager.getInstalledApps(getApplication())
@@ -248,7 +292,11 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             
             val handle = AppManager.getPrivateProfileHandle(getApplication())
             _osPrivateProfileHandle.value = handle
-            _isOsPrivateSpaceLocked.value = handle?.let { AppManager.isQuietModeEnabled(getApplication(), it) } ?: true
+            val isLocked = handle?.let { AppManager.isQuietModeEnabled(getApplication(), it) } ?: true
+            _isOsPrivateSpaceLocked.value = isLocked
+            if (isLocked) {
+                checkActiveProfilePrivateSpace(true)
+            }
             
             refreshUsageStats()
         }
@@ -275,6 +323,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         } else {
             AppManager.requestQuietModeEnabled(context, true, handle)
             _isOsPrivateSpaceLocked.value = true
+            checkActiveProfilePrivateSpace(true)
         }
         viewModelScope.launch(Dispatchers.IO) {
             kotlinx.coroutines.delay(200)
@@ -285,17 +334,23 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     // Focus Profile Management
     fun selectFocusProfile(profileId: Int) {
         viewModelScope.launch {
-            prefManager.updateActiveProfileId(profileId)
-            val profile = focusProfiles.value.find { it.id == profileId }
-            if (profile?.lockPrivateSpace != false) {
+            val targetProfile = focusProfiles.value.find { it.id == profileId }
+            val handle = _osPrivateProfileHandle.value
+
+            if (targetProfile?.requiresPrivateSpace == true && _isOsPrivateSpaceLocked.value) {
+                // Unlock private space if selecting private profile
+                if (handle != null) {
+                    AppManager.requestQuietModeEnabled(getApplication(), false, handle)
+                }
+            } else if (targetProfile?.lockPrivateSpace == true && !_isOsPrivateSpaceLocked.value) {
                 // Auto-lock private space when focus profile becomes active
                 _isPrivateSpaceUnlocked.value = false
-                val handle = _osPrivateProfileHandle.value
                 if (handle != null) {
                     AppManager.requestQuietModeEnabled(getApplication(), true, handle)
                     _isOsPrivateSpaceLocked.value = true
                 }
             }
+            prefManager.updateActiveProfileId(profileId)
         }
     }
 

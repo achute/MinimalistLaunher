@@ -39,6 +39,7 @@ import com.example.ui.theme.getFontFamily
 fun FocusAppList(
     focusApps: List<AppInfoItem>,
     clockFont: ClockFont,
+    isPrivateSpaceLocked: Boolean = false,
     onAppClick: (AppInfoItem) -> Unit,
     onAppLongClick: (AppInfoItem) -> Unit,
     onAddSlotClick: (slotIndex: Int) -> Unit,
@@ -100,8 +101,17 @@ fun FocusAppList(
                             )
                         }
 
-                        // Indicators (Limit active, etc.)
+                        // Indicators (Limit active, Private Space locked, etc.)
                         Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (appItem.isPrivateProfile && isPrivateSpaceLocked) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Lock,
+                                    contentDescription = "Private Space Locked",
+                                    tint = MaterialTheme.colorScheme.error.copy(alpha = 0.8f),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                            }
                             if (appItem.dailyLimitMinutes != null && appItem.dailyLimitMinutes > 0) {
                                 Icon(
                                     imageVector = Icons.Outlined.HourglassBottom,

@@ -565,6 +565,7 @@ fun LauncherRootScreen(
                                 settings = settings,
                                 focusProfiles = focusProfiles,
                                 activeProfileId = settings.activeProfileId,
+                                isPrivateSpaceLocked = isOsPrivateSpaceLocked,
                                 widgetSlots = widgetSlots,
                                 appWidgetHost = app.appWidgetHost,
                                 onSelectProfile = { viewModel.selectFocusProfile(it) },
@@ -586,8 +587,18 @@ fun LauncherRootScreen(
                             FocusAppList(
                                 focusApps = activeFocusApps,
                                 clockFont = settings.clockFont,
+                                isPrivateSpaceLocked = isOsPrivateSpaceLocked,
                                 onAppClick = { appItem ->
-                                    AppManager.launchApp(context, appItem.packageName, appItem.userHandle)
+                                    if (appItem.isPrivateProfile && isOsPrivateSpaceLocked) {
+                                        val handle = osPrivateProfileHandle ?: appItem.userHandle
+                                        if (handle != null) {
+                                            viewModel.toggleOsPrivateSpace(context, handle)
+                                        } else {
+                                            AppManager.launchApp(context, appItem.packageName, appItem.userHandle)
+                                        }
+                                    } else {
+                                        AppManager.launchApp(context, appItem.packageName, appItem.userHandle)
+                                    }
                                 },
                                 onAppLongClick = { appItem ->
                                     selectedAppForAction = appItem
@@ -691,12 +702,15 @@ fun LauncherRootScreen(
                 onPinToFocus = { slotIndex ->
                     val activeProfile = focusProfiles.find { it.id == settings.activeProfileId }
                     if (activeProfile != null) {
+                        val pkgToStore = if (targetApp.isPrivateProfile) "pvt:${targetApp.packageName}" else targetApp.packageName
                         val updated = when (slotIndex) {
-                            0 -> activeProfile.copy(appPackage1 = targetApp.packageName)
-                            1 -> activeProfile.copy(appPackage2 = targetApp.packageName)
-                            2 -> activeProfile.copy(appPackage3 = targetApp.packageName)
-                            3 -> activeProfile.copy(appPackage4 = targetApp.packageName)
-                            else -> activeProfile.copy(appPackage5 = targetApp.packageName)
+                            0 -> activeProfile.copy(appPackage1 = pkgToStore)
+                            1 -> activeProfile.copy(appPackage2 = pkgToStore)
+                            2 -> activeProfile.copy(appPackage3 = pkgToStore)
+                            3 -> activeProfile.copy(appPackage4 = pkgToStore)
+                            else -> activeProfile.copy(appPackage5 = pkgToStore)
+                        }.let {
+                            if (targetApp.isPrivateProfile) it.copy(requiresPrivateSpace = true) else it
                         }
                         viewModel.saveFocusProfile(updated)
                     }
@@ -759,12 +773,15 @@ fun LauncherRootScreen(
                 onAppSelected = { chosenApp ->
                     val activeProfile = focusProfiles.find { it.id == settings.activeProfileId }
                     if (activeProfile != null) {
+                        val pkgToStore = if (chosenApp.isPrivateProfile) "pvt:${chosenApp.packageName}" else chosenApp.packageName
                         val updated = when (appPickerSlotIndex) {
-                            0 -> activeProfile.copy(appPackage1 = chosenApp.packageName)
-                            1 -> activeProfile.copy(appPackage2 = chosenApp.packageName)
-                            2 -> activeProfile.copy(appPackage3 = chosenApp.packageName)
-                            3 -> activeProfile.copy(appPackage4 = chosenApp.packageName)
-                            else -> activeProfile.copy(appPackage5 = chosenApp.packageName)
+                            0 -> activeProfile.copy(appPackage1 = pkgToStore)
+                            1 -> activeProfile.copy(appPackage2 = pkgToStore)
+                            2 -> activeProfile.copy(appPackage3 = pkgToStore)
+                            3 -> activeProfile.copy(appPackage4 = pkgToStore)
+                            else -> activeProfile.copy(appPackage5 = pkgToStore)
+                        }.let {
+                            if (chosenApp.isPrivateProfile) it.copy(requiresPrivateSpace = true) else it
                         }
                         viewModel.saveFocusProfile(updated)
                     }

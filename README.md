@@ -12,10 +12,12 @@ An offline, text-only, privacy-first minimalist Android home launcher engineered
 * **Typographic Themes**: Choose between *Retro Monospace*, *Clean Sans*, *Elegant Serif*, *Digital Matrix*, *Terminal VT100*, and *Typewriter* styles.
 * **Custom Font Engine**: Import any `.ttf` or `.otf` font file from your device storage with an option to apply custom typography across the entire launcher interface.
 
-### 2. Contextual Focus Profiles
+### 2. Contextual Focus Profiles & Private Space Coupling
 * **5 Quick-Access Focus Slots**: Keep your 5 essential apps right on the home screen.
-* **Custom Profiles**: Create and switch between distinct focus configurations (e.g. *Work*, *Study*, *Reading*, *Gym*, *Zen*).
-* **Private Space Auto-Lock**: Optionally lock private/hidden applications whenever a specific focus profile is activated.
+* **Custom Profiles**: Create and switch between distinct focus configurations (e.g. *Deep Work*, *Minimal*, *Evening & Wind Down*, *Private Vault*).
+* **Private Space Tied Modes**: Configure focus profiles to require an unlocked Private Space (`requiresPrivateSpace = true`). If Private Space is locked, the launcher automatically reverts to the default safe profile, keeping private apps hidden and locked.
+* **Auto-Lock & Unlock Sync**: Automatically locks Private Space when switching to standard focus profiles, or triggers biometric unlock when switching to private profiles.
+* **Visual Status Indicators**: Profiles requiring Private Space display `[PVT]` badges and discrete lock state tags in the quick switcher.
 
 ### 3. Utility & Health Dashboard (Swipe Left)
 * **Real-Time Battery Telemetry**: Live status card tracking battery percentage, charging state, power source (AC Fast Charging, USB, Wireless), battery temperature in °C, voltage, and health status.
@@ -25,10 +27,11 @@ An offline, text-only, privacy-first minimalist Android home launcher engineered
 
 ### 4. Searchable App Drawer & Native Private Space (Swipe Up)
 * **Instant Text Search**: Instant fuzzy filtering across all installed applications.
+* **Visual `[PVT]` Indicator**: Private Space apps are clearly distinguished with a `[PVT]` prefix across the app drawer, focus slots, and quick pickers.
 * **Recent Apps Strip**: Quick access to recently used applications powered by Android Usage Stats.
 * **Native Android 15 Private Space**: Seamlessly integrates with Android 15's native Private Space user profile. Appears as a discrete pill at the bottom of the drawer, unlocking with system authentication (`UserManager.requestQuietModeEnabled()`) and collapsing/locking with a single tap.
 * **Granular App Management (Long-Press)**:
-  * Pin to any Focus Profile slot.
+  * Pin to any Focus Profile slot (automatically flags profile as private if pinning a private app).
   * Map to bottom quick-action slots.
   * Assign custom app aliases (rename app labels).
   * Configure daily screentime limits.

@@ -44,6 +44,12 @@ class LauncherUnitTest {
 
         val item2 = AppInfoItem(packageName = "com.android.chrome", label = "Chrome", customLabel = "Web Browser")
         assertEquals("Web Browser", item2.displayLabel)
+
+        val item3 = AppInfoItem(packageName = "com.android.chrome", label = "Chrome", isPrivateProfile = true)
+        assertEquals("[PVT] Chrome", item3.displayLabel)
+
+        val item4 = AppInfoItem(packageName = "com.android.chrome", label = "Chrome", customLabel = "Web Browser", isPrivateProfile = true)
+        assertEquals("[PVT] Web Browser", item4.displayLabel)
     }
 
     @Test
@@ -51,6 +57,8 @@ class LauncherUnitTest {
         val profile = FocusProfile(
             id = 1,
             name = "Work",
+            lockPrivateSpace = true,
+            requiresPrivateSpace = false,
             appPackage1 = "com.google.android.gm",
             appPackage2 = "com.google.android.keep",
             appPackage3 = "",
@@ -61,6 +69,17 @@ class LauncherUnitTest {
         assertEquals(2, packages.size)
         assertEquals("com.google.android.gm", packages[0])
         assertEquals("com.google.android.keep", packages[1])
+        assertTrue(profile.lockPrivateSpace)
+        assertFalse(profile.requiresPrivateSpace)
+
+        val privateProfile = FocusProfile(
+            id = 4,
+            name = "Private Vault",
+            lockPrivateSpace = false,
+            requiresPrivateSpace = true
+        )
+        assertTrue(privateProfile.requiresPrivateSpace)
+        assertFalse(privateProfile.lockPrivateSpace)
     }
 
     @Test
@@ -81,8 +100,8 @@ class LauncherUnitTest {
     @Test
     fun testLauncherSettingsGestureDefaults() {
         val settings = com.example.data.LauncherSettings()
-        assertEquals("browser", settings.swipeRightAction)
-        assertEquals("utility", settings.swipeLeftAction)
+        assertEquals("utility", settings.swipeRightAction)
+        assertEquals("apps", settings.swipeLeftAction)
     }
 
     @Test

@@ -1585,11 +1585,20 @@ private fun FocusProfilesTab(
                 Spacer(modifier = Modifier.height(4.dp))
                 val pkgs = profile.getPackages()
                 Text(
-                    text = if (pkgs.isEmpty()) "No apps assigned yet" else "${pkgs.size} apps: " + pkgs.joinToString(", ") { it.substringAfterLast('.') },
+                    text = if (pkgs.isEmpty()) "No apps assigned yet" else "${pkgs.size} apps: " + pkgs.joinToString(", ") {
+                        val isPvt = it.startsWith("pvt:")
+                        val clean = it.removePrefix("pvt:").substringAfterLast('.')
+                        if (isPvt) "[PVT] $clean" else clean
+                    },
                     style = TextStyle(fontFamily = fontFamily, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
                 )
 
-                if (profile.lockPrivateSpace) {
+                if (profile.requiresPrivateSpace) {
+                    Text(
+                        text = "🔒 Requires Private Space Unlocked (Reverts to default if locked)",
+                        style = TextStyle(fontFamily = fontFamily, fontSize = 10.sp, color = MaterialTheme.colorScheme.primary)
+                    )
+                } else if (profile.lockPrivateSpace) {
                     Text(
                         text = "• Private Space auto-locked during this mode",
                         style = TextStyle(fontFamily = fontFamily, fontSize = 10.sp, color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f))
@@ -1612,6 +1621,7 @@ private fun FocusProfileEditDialog(
     var name by remember { mutableStateOf(profile.name) }
     var isDndLinked by remember { mutableStateOf(profile.isDndLinked) }
     var lockPrivateSpace by remember { mutableStateOf(profile.lockPrivateSpace) }
+    var requiresPrivateSpace by remember { mutableStateOf(profile.requiresPrivateSpace) }
     var app1 by remember { mutableStateOf(profile.appPackage1) }
     var app2 by remember { mutableStateOf(profile.appPackage2) }
     var app3 by remember { mutableStateOf(profile.appPackage3) }
@@ -1641,7 +1651,10 @@ private fun FocusProfileEditDialog(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text("Link with System DND", style = TextStyle(fontFamily = fontFamily, fontSize = 12.sp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Link with System DND", style = TextStyle(fontFamily = fontFamily, fontSize = 12.sp, fontWeight = FontWeight.Medium))
+                        Text("Turn on Do Not Disturb when active", style = TextStyle(fontFamily = fontFamily, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)))
+                    }
                     Switch(checked = isDndLinked, onCheckedChange = { isDndLinked = it })
                 }
 
@@ -1650,8 +1663,31 @@ private fun FocusProfileEditDialog(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text("Auto-Lock Private Space", style = TextStyle(fontFamily = fontFamily, fontSize = 12.sp))
-                    Switch(checked = lockPrivateSpace, onCheckedChange = { lockPrivateSpace = it })
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Require Private Space", style = TextStyle(fontFamily = fontFamily, fontSize = 12.sp, fontWeight = FontWeight.Medium))
+                        Text("Only active when Private Space is unlocked; switches back to default profile when locked", style = TextStyle(fontFamily = fontFamily, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)))
+                    }
+                    Switch(
+                        checked = requiresPrivateSpace,
+                        onCheckedChange = {
+                            requiresPrivateSpace = it
+                            if (it) lockPrivateSpace = false
+                        }
+                    )
+                }
+
+                if (!requiresPrivateSpace) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Auto-Lock Private Space", style = TextStyle(fontFamily = fontFamily, fontSize = 12.sp, fontWeight = FontWeight.Medium))
+                            Text("Lock Private Space when entering this profile", style = TextStyle(fontFamily = fontFamily, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)))
+                        }
+                        Switch(checked = lockPrivateSpace, onCheckedChange = { lockPrivateSpace = it })
+                    }
                 }
 
                 Text("ASSIGN 5 FOCUS APPS:", style = TextStyle(fontFamily = fontFamily, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary))
@@ -1663,7 +1699,21 @@ private fun FocusProfileEditDialog(
                     Pair(4, app4) to { pkg: String -> app4 = pkg },
                     Pair(5, app5) to { pkg: String -> app5 = pkg }
                 ).forEach { (slotData, setter) ->
-                    val (num, pkg) = slotData
+                    val (num, rawPkg) = slotData
+                    val isPvt = rawPkg.startsWith("pvt:")
+                    val cleanPkg = rawPkg.removePrefix("pvt:")
+                    val resolvedApp = allApps.find {
+                        if (isPvt) it.packageName == cleanPkg && it.isPrivateProfile
+                        else it.packageName == cleanPkg && !it.isPrivateProfile
+                    } ?: allApps.find { it.packageName == cleanPkg }
+
+                    val displaySlotLabel = when {
+                        rawPkg.isBlank() -> "[Tap to select]"
+                        resolvedApp != null -> resolvedApp.displayLabel
+                        isPvt -> "[PVT] ${cleanPkg.substringAfterLast('.')}"
+                        else -> cleanPkg.substringAfterLast('.')
+                    }
+
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1675,10 +1725,10 @@ private fun FocusProfileEditDialog(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "Slot 0$num: ${if (pkg.isBlank()) "[Tap to select]" else pkg.substringAfterLast('.')}",
+                            text = "Slot 0$num: $displaySlotLabel",
                             style = TextStyle(fontFamily = fontFamily, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
                         )
-                        if (pkg.isNotBlank()) {
+                        if (rawPkg.isNotBlank()) {
                             IconButton(onClick = { setter("") }, modifier = Modifier.size(20.dp)) {
                                 Icon(imageVector = Icons.Outlined.Close, contentDescription = "Clear", modifier = Modifier.size(14.dp))
                             }
@@ -1694,7 +1744,8 @@ private fun FocusProfileEditDialog(
                         profile.copy(
                             name = name.ifBlank { "Focus Profile" },
                             isDndLinked = isDndLinked,
-                            lockPrivateSpace = lockPrivateSpace,
+                            lockPrivateSpace = if (requiresPrivateSpace) false else lockPrivateSpace,
+                            requiresPrivateSpace = requiresPrivateSpace,
                             appPackage1 = app1,
                             appPackage2 = app2,
                             appPackage3 = app3,
@@ -1719,12 +1770,16 @@ private fun FocusProfileEditDialog(
             allApps = allApps,
             clockFont = ClockFont.RETRO_MONO,
             onAppSelected = { app ->
+                val pkgToStore = if (app.isPrivateProfile) "pvt:${app.packageName}" else app.packageName
                 when (pickingSlotIndex) {
-                    1 -> app1 = app.packageName
-                    2 -> app2 = app.packageName
-                    3 -> app3 = app.packageName
-                    4 -> app4 = app.packageName
-                    5 -> app5 = app.packageName
+                    1 -> app1 = pkgToStore
+                    2 -> app2 = pkgToStore
+                    3 -> app3 = pkgToStore
+                    4 -> app4 = pkgToStore
+                    5 -> app5 = pkgToStore
+                }
+                if (app.isPrivateProfile) {
+                    requiresPrivateSpace = true
                 }
                 pickingSlotIndex = null
             },
