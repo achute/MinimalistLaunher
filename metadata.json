@@ -1,0 +1,7 @@
+{
+  "name": "Minimalist Launcher",
+  "description": "Offline text-only minimalist Android launcher with focus modes, digital wellbeing, task manager, gestures, and AppWidgetHost for zero-network widgets.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
