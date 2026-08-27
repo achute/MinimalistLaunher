@@ -15,55 +15,104 @@ import com.example.model.AppInfoItem
 object AppManager {
 
     fun getInstalledApps(context: Context): List<AppInfoItem> {
-        val packageManager = context.packageManager
-        val intent = Intent(Intent.ACTION_MAIN, null).apply {
-            addCategory(Intent.CATEGORY_LAUNCHER)
-        }
-
-        val resolveInfos = try {
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-                packageManager.queryIntentActivities(
-                    intent,
-                    PackageManager.ResolveInfoFlags.of(PackageManager.MATCH_ALL.toLong())
-                )
-            } else {
-                @Suppress("DEPRECATION")
-                packageManager.queryIntentActivities(intent, 0)
-            }
-        } catch (e: Exception) {
-            emptyList()
-        }
-
+        val launcherApps = context.getSystemService(Context.LAUNCHER_APPS_SERVICE) as android.content.pm.LauncherApps
+        val userManager = context.getSystemService(Context.USER_SERVICE) as android.os.UserManager
+        
+        val appsList = mutableListOf<AppInfoItem>()
         val myPackage = context.packageName
 
-        return resolveInfos
-            .filter { it.activityInfo != null && it.activityInfo.packageName != myPackage }
-            .distinctBy { it.activityInfo.packageName }
-            .map { resolveInfo ->
-                val packageName = resolveInfo.activityInfo.packageName
-                val label = try {
-                    resolveInfo.loadLabel(packageManager).toString()
-                } catch (e: Exception) {
-                    packageName
+        try {
+            val profiles = launcherApps.profiles
+            for (profile in profiles) {
+                var isPrivate = false
+                if (profile != android.os.Process.myUserHandle()) {
+                    try {
+                        val userInfo = launcherApps.getLauncherUserInfo(profile)
+                        if (userInfo != null && userInfo.userType == "android.os.usertype.profile.PRIVATE") {
+                            isPrivate = true
+                        }
+                    } catch (e: Exception) {} catch (e: Error) {}
                 }
-                AppInfoItem(
-                    packageName = packageName,
-                    label = label
-                )
+
+                val activities = launcherApps.getActivityList(null, profile)
+                for (activityInfo in activities) {
+                    val packageName = activityInfo.componentName.packageName
+                    if (packageName == myPackage) continue
+                    
+                    appsList.add(
+                        AppInfoItem(
+                            packageName = packageName,
+                            label = activityInfo.label.toString(),
+                            userHandle = profile,
+                            isPrivateProfile = isPrivate
+                        )
+                    )
+                }
             }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        return appsList
+            .distinctBy { it.packageName + "_" + (it.userHandle?.hashCode() ?: 0) }
             .sortedBy { it.label.lowercase() }
     }
 
-    fun launchApp(context: Context, packageName: String): Boolean {
+    fun getPrivateProfileHandle(context: Context): android.os.UserHandle? {
+        val launcherApps = context.getSystemService(Context.LAUNCHER_APPS_SERVICE) as android.content.pm.LauncherApps
+        try {
+            for (profile in launcherApps.profiles) {
+                if (profile != android.os.Process.myUserHandle()) {
+                    try {
+                        val userInfo = launcherApps.getLauncherUserInfo(profile)
+                        if (userInfo != null && userInfo.userType == "android.os.usertype.profile.PRIVATE") {
+                            return profile
+                        }
+                    } catch (e: Exception) {} catch (e: Error) {}
+                }
+            }
+        } catch (e: Exception) {}
+        return null
+    }
+
+    fun requestQuietModeEnabled(context: Context, enableQuietMode: Boolean, userHandle: android.os.UserHandle): Boolean {
         return try {
-            val launchIntent = context.packageManager.getLaunchIntentForPackage(packageName)
-            if (launchIntent != null) {
-                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                context.startActivity(launchIntent)
+            val userManager = context.getSystemService(Context.USER_SERVICE) as android.os.UserManager
+            userManager.requestQuietModeEnabled(enableQuietMode, userHandle)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    fun isQuietModeEnabled(context: Context, userHandle: android.os.UserHandle): Boolean {
+        return try {
+            val userManager = context.getSystemService(Context.USER_SERVICE) as android.os.UserManager
+            userManager.isQuietModeEnabled(userHandle)
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    fun launchApp(context: Context, packageName: String, userHandle: android.os.UserHandle? = null): Boolean {
+        return try {
+            val launcherApps = context.getSystemService(Context.LAUNCHER_APPS_SERVICE) as android.content.pm.LauncherApps
+            val user = userHandle ?: android.os.Process.myUserHandle()
+            
+            val activities = launcherApps.getActivityList(packageName, user)
+            if (activities.isNotEmpty()) {
+                launcherApps.startMainActivity(activities[0].componentName, user, null, null)
                 true
             } else {
-                Toast.makeText(context, "Cannot launch app ($packageName)", Toast.LENGTH_SHORT).show()
-                false
+                val launchIntent = context.packageManager.getLaunchIntentForPackage(packageName)
+                if (launchIntent != null) {
+                    launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    context.startActivity(launchIntent)
+                    true
+                } else {
+                    Toast.makeText(context, "Cannot launch app ($packageName)", Toast.LENGTH_SHORT).show()
+                    false
+                }
             }
         } catch (e: Exception) {
             Toast.makeText(context, "Launch failed: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
@@ -173,7 +222,18 @@ object AppManager {
         }
     }
 
-    fun openAppSettings(context: Context, packageName: String) {
+    fun openAppSettings(context: Context, packageName: String, userHandle: android.os.UserHandle? = null) {
+        try {
+            val user = userHandle ?: android.os.Process.myUserHandle()
+            val launcherApps = context.getSystemService(Context.LAUNCHER_APPS_SERVICE) as android.content.pm.LauncherApps
+            val activities = launcherApps.getActivityList(packageName, user)
+            if (activities.isNotEmpty()) {
+                launcherApps.startAppDetailsActivity(activities[0].componentName, user, null, null)
+                return
+            }
+        } catch (e: Exception) {
+            // fallback
+        }
         try {
             val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
                 data = Uri.fromParts("package", packageName, null)

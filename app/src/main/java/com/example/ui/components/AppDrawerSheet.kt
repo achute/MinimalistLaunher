@@ -1,6 +1,5 @@
 package com.example.ui.components
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -39,15 +38,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
-import androidx.compose.material3.TabRowDefaults
-import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -64,20 +57,20 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.ClockFont
 import com.example.model.AppInfoItem
-import com.example.ui.theme.getFontFamily
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun AppDrawerSheet(
-    allApps: List<AppInfoItem>,
+    mainApps: List<AppInfoItem>,
+    privateApps: List<AppInfoItem>,
     recentApps: List<AppInfoItem>,
     clockFont: ClockFont,
-    isPrivateSpaceUnlocked: Boolean,
+    isPrivateSpaceLocked: Boolean,
+    osPrivateProfileHandle: android.os.UserHandle?,
     onAppClick: (AppInfoItem) -> Unit,
     onAppLongClick: (AppInfoItem) -> Unit,
-    onUnlockPrivateSpace: () -> Unit,
-    onLockPrivateSpace: () -> Unit,
+    onTogglePrivateSpace: (android.os.UserHandle) -> Unit,
     onCloseDrawer: () -> Unit,
     onSearchWeb: (String) -> Unit,
     modifier: Modifier = Modifier
@@ -87,30 +80,21 @@ fun AppDrawerSheet(
         com.example.util.FontManager.resolveFontFamily(context, clockFont)
     }
     var searchQuery by remember { mutableStateOf("") }
-    var selectedTab by remember { mutableIntStateOf(0) } // 0: All Apps, 1: Private Space
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
 
-    // Filter visible vs hidden
-    val visibleApps = remember(allApps, searchQuery) {
-        val nonHidden = allApps.filter { !it.isHidden }
-        if (searchQuery.isBlank()) {
-            nonHidden
-        } else {
-            nonHidden.filter {
-                it.displayLabel.contains(searchQuery, ignoreCase = true) ||
-                        it.packageName.contains(searchQuery, ignoreCase = true)
-            }
-        }
+    val visibleMainApps = remember(mainApps, searchQuery) {
+        if (searchQuery.isBlank()) mainApps
+        else mainApps.filter { it.displayLabel.contains(searchQuery, ignoreCase = true) || it.packageName.contains(searchQuery, ignoreCase = true) }
     }
 
-    val hiddenAppsList = remember(allApps) {
-        allApps.filter { it.isHidden }
+    val visiblePrivateApps = remember(privateApps, searchQuery) {
+        if (searchQuery.isBlank()) privateApps
+        else privateApps.filter { it.displayLabel.contains(searchQuery, ignoreCase = true) || it.packageName.contains(searchQuery, ignoreCase = true) }
     }
 
-    // Group by first letter for A-Z indexing
-    val groupedApps = remember(visibleApps) {
-        visibleApps.groupBy {
+    val groupedApps = remember(visibleMainApps) {
+        visibleMainApps.groupBy {
             val firstChar = it.displayLabel.firstOrNull()?.uppercaseChar() ?: '#'
             if (firstChar in 'A'..'Z') firstChar else '#'
         }
@@ -125,7 +109,6 @@ fun AppDrawerSheet(
             .padding(top = 12.dp)
             .testTag("app_drawer_container")
     ) {
-        // Drawer Header & Close Button
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -159,7 +142,6 @@ fun AppDrawerSheet(
             }
         }
 
-        // Search Field
         OutlinedTextField(
             value = searchQuery,
             onValueChange = { searchQuery = it },
@@ -206,10 +188,10 @@ fun AppDrawerSheet(
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
             keyboardActions = KeyboardActions(
                 onSearch = {
-                    if (searchQuery.isNotBlank() && visibleApps.isEmpty()) {
+                    if (searchQuery.isNotBlank() && visibleMainApps.isEmpty()) {
                         onSearchWeb(searchQuery)
-                    } else if (visibleApps.isNotEmpty()) {
-                        onAppClick(visibleApps.first())
+                    } else if (visibleMainApps.isNotEmpty()) {
+                        onAppClick(visibleMainApps.first())
                     }
                 }
             ),
@@ -220,190 +202,44 @@ fun AppDrawerSheet(
             )
         )
 
-        // Tabs: Standard Drawer vs Private Space
-        TabRow(
-            selectedTabIndex = selectedTab,
-            containerColor = MaterialTheme.colorScheme.background,
-            contentColor = MaterialTheme.colorScheme.primary,
-            indicator = { tabPositions ->
-                TabRowDefaults.SecondaryIndicator(
-                    modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
-                    color = MaterialTheme.colorScheme.primary,
-                    height = 2.dp
-                )
-            },
-            modifier = Modifier.padding(horizontal = 20.dp)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
         ) {
-            Tab(
-                selected = selectedTab == 0,
-                onClick = { selectedTab = 0 },
-                text = {
-                    Text(
-                        text = "ALL APPS (${visibleApps.size})",
-                        style = TextStyle(
-                            fontFamily = fontFamily,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.sp
-                        )
-                    )
-                },
-                modifier = Modifier.testTag("tab_all_apps")
-            )
-
-            Tab(
-                selected = selectedTab == 1,
-                onClick = {
-                    selectedTab = 1
-                    if (!isPrivateSpaceUnlocked) {
-                        onUnlockPrivateSpace()
-                    }
-                },
-                text = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = if (isPrivateSpaceUnlocked) Icons.Outlined.LockOpen else Icons.Outlined.Lock,
-                            contentDescription = null,
-                            modifier = Modifier.size(14.dp),
-                            tint = if (isPrivateSpaceUnlocked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "PRIVATE SPACE (${hiddenAppsList.size})",
-                            style = TextStyle(
-                                fontFamily = fontFamily,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 1.sp
-                            )
-                        )
-                    }
-                },
-                modifier = Modifier.testTag("tab_private_space")
-            )
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        if (selectedTab == 0) {
-            // Standard App Drawer
-            Row(
+            LazyColumn(
+                state = listState,
                 modifier = Modifier
-                    .fillMaxWidth()
                     .weight(1f)
+                    .padding(start = 20.dp, end = 8.dp)
+                    .testTag("app_drawer_list")
             ) {
-                // Main App List
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(start = 20.dp, end = 8.dp)
-                        .testTag("app_drawer_list")
-                ) {
-                    // Recent Apps section (only when not searching)
-                    if (searchQuery.isBlank() && recentApps.isNotEmpty()) {
-                        item {
-                            Column(modifier = Modifier.padding(bottom = 12.dp)) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.padding(vertical = 6.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Outlined.History,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
-                                        modifier = Modifier.size(14.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = "RECENT APPS",
-                                        style = TextStyle(
-                                            fontFamily = fontFamily,
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            letterSpacing = 1.sp,
-                                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
-                                        )
-                                    )
-                                }
-
-                                recentApps.forEach { appItem ->
-                                    AppDrawerItem(
-                                        appItem = appItem,
-                                        fontFamily = fontFamily,
-                                        onClick = { onAppClick(appItem) },
-                                        onLongClick = { onAppLongClick(appItem) }
-                                    )
-                                }
-
-                                Spacer(modifier = Modifier.height(12.dp))
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(0.5.dp)
-                                        .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
-                                )
-                                Spacer(modifier = Modifier.height(12.dp))
-                            }
-                        }
-                    }
-
-                    // Categorized Alphabetical List
-                    if (visibleApps.isEmpty()) {
-                        item {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 32.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
+                if (searchQuery.isBlank() && recentApps.isNotEmpty()) {
+                    item {
+                        Column(modifier = Modifier.padding(bottom = 12.dp)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(vertical = 6.dp)
                             ) {
-                                Text(
-                                    text = "No apps matching \"$searchQuery\"",
-                                    style = TextStyle(
-                                        fontFamily = fontFamily,
-                                        fontSize = 13.sp,
-                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                                    )
+                                Icon(
+                                    imageVector = Icons.Outlined.History,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
+                                    modifier = Modifier.size(14.dp)
                                 )
-                                Spacer(modifier = Modifier.height(12.dp))
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                                        .border(0.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
-                                        .clickable { onSearchWeb(searchQuery) }
-                                        .padding(horizontal = 16.dp, vertical = 10.dp)
-                                        .testTag("search_web_button")
-                                ) {
-                                    Text(
-                                        text = "Search Web for \"$searchQuery\"",
-                                        style = TextStyle(
-                                            fontFamily = fontFamily,
-                                            fontSize = 13.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.primary
-                                        )
-                                    )
-                                }
-                            }
-                        }
-                    } else {
-                        groupedApps.forEach { (charHeader, appsUnderChar) ->
-                            item(key = "header_$charHeader") {
+                                Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = charHeader.toString(),
+                                    text = "RECENT APPS",
                                     style = TextStyle(
                                         fontFamily = fontFamily,
-                                        fontSize = 12.sp,
+                                        fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
                                         letterSpacing = 1.sp,
-                                        color = MaterialTheme.colorScheme.primary
-                                    ),
-                                    modifier = Modifier.padding(top = 10.dp, bottom = 4.dp)
+                                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+                                    )
                                 )
                             }
-
-                            items(appsUnderChar, key = { it.packageName }) { appItem ->
+                            recentApps.forEach { appItem ->
                                 AppDrawerItem(
                                     appItem = appItem,
                                     fontFamily = fontFamily,
@@ -413,188 +249,214 @@ fun AppDrawerSheet(
                             }
                         }
                     }
+                }
 
+                if (visibleMainApps.isEmpty()) {
                     item {
-                        Spacer(modifier = Modifier.height(40.dp))
-                    }
-                }
-
-                // A-Z Fast Scroll Rail
-                if (searchQuery.isBlank()) {
-                    Column(
-                        modifier = Modifier
-                            .width(28.dp)
-                            .fillMaxHeight()
-                            .padding(end = 4.dp),
-                        verticalArrangement = Arrangement.SpaceEvenly,
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        alphabetList.forEach { char ->
-                            val isPresent = groupedApps.containsKey(char)
-                            Text(
-                                text = char.toString(),
-                                style = TextStyle(
-                                    fontFamily = fontFamily,
-                                    fontSize = 9.sp,
-                                    fontWeight = if (isPresent) FontWeight.Bold else FontWeight.Light,
-                                    color = if (isPresent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
-                                ),
-                                modifier = Modifier
-                                    .clickable(enabled = isPresent) {
-                                        // Scroll to header
-                                        // approximate index calculation
-                                        val headerKey = "header_$char"
-                                        coroutineScope.launch {
-                                            // Scroll to char position
-                                            val index = groupedApps.keys.toList().indexOf(char)
-                                            if (index >= 0) {
-                                                listState.animateScrollToItem(index * 2)
-                                            }
-                                        }
-                                    }
-                                    .padding(vertical = 1.dp)
-                            )
-                        }
-                    }
-                }
-            }
-        } else {
-            // Private Space Section
-            if (!isPrivateSpaceUnlocked) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(32.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(64.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.surfaceVariant)
-                            .border(0.5.dp, MaterialTheme.colorScheme.outline, CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Fingerprint,
-                            contentDescription = "Biometric Lock",
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(32.dp)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    Text(
-                        text = "Private Space Locked",
-                        style = TextStyle(
-                            fontFamily = fontFamily,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onBackground
-                        )
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Text(
-                        text = "Hidden apps are protected by on-device biometric security or PIN.",
-                        style = TextStyle(
-                            fontFamily = fontFamily,
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                        ),
-                        modifier = Modifier.padding(horizontal = 24.dp)
-                    )
-
-                    Spacer(modifier = Modifier.height(20.dp))
-
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(MaterialTheme.colorScheme.primary)
-                            .clickable { onUnlockPrivateSpace() }
-                            .padding(horizontal = 24.dp, vertical = 12.dp)
-                            .testTag("unlock_biometric_button")
-                    ) {
-                        Text(
-                            text = "Unlock with Biometrics / PIN",
-                            style = TextStyle(
-                                fontFamily = fontFamily,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onPrimary
-                            )
-                        )
-                    }
-                }
-            } else {
-                // Unlocked Private Space App List
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 20.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "HIDDEN PACKAGES",
-                            style = TextStyle(
-                                fontFamily = fontFamily,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        )
-
-                        Text(
-                            text = "[ LOCK NOW ]",
-                            style = TextStyle(
-                                fontFamily = fontFamily,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                            ),
-                            modifier = Modifier
-                                .clickable { onLockPrivateSpace() }
-                                .padding(4.dp)
-                                .testTag("lock_private_space_button")
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    if (hiddenAppsList.isEmpty()) {
-                        Box(
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = 40.dp),
-                            contentAlignment = Alignment.Center
+                                .padding(vertical = 32.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Text(
-                                text = "No hidden apps yet.\nLong-press any app in All Apps to move it here.",
+                                text = "No apps matching \"$searchQuery\"",
                                 style = TextStyle(
                                     fontFamily = fontFamily,
                                     fontSize = 13.sp,
                                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                                 )
                             )
-                        }
-                    } else {
-                        LazyColumn {
-                            items(hiddenAppsList, key = { it.packageName }) { appItem ->
-                                AppDrawerItem(
-                                    appItem = appItem,
-                                    fontFamily = fontFamily,
-                                    onClick = { onAppClick(appItem) },
-                                    onLongClick = { onAppLongClick(appItem) }
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                    .border(0.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
+                                    .clickable { onSearchWeb(searchQuery) }
+                                    .padding(horizontal = 16.dp, vertical = 10.dp)
+                                    .testTag("search_web_button")
+                            ) {
+                                Text(
+                                    text = "Search Web for \"$searchQuery\"",
+                                    style = TextStyle(
+                                        fontFamily = fontFamily,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
                                 )
                             }
                         }
+                    }
+                } else {
+                    groupedApps.forEach { (charHeader, appsUnderChar) ->
+                        item(key = "header_$charHeader") {
+                            Text(
+                                text = charHeader.toString(),
+                                style = TextStyle(
+                                    fontFamily = fontFamily,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 1.sp,
+                                    color = MaterialTheme.colorScheme.primary
+                                ),
+                                modifier = Modifier.padding(top = 10.dp, bottom = 4.dp)
+                            )
+                        }
+
+                        items(appsUnderChar, key = { "${it.packageName}_${it.userHandle?.hashCode() ?: 0}" }) { appItem ->
+                            AppDrawerItem(
+                                appItem = appItem,
+                                fontFamily = fontFamily,
+                                onClick = { onAppClick(appItem) },
+                                onLongClick = { onAppLongClick(appItem) }
+                            )
+                        }
+                    }
+                }
+
+                // Private Space pill at the bottom
+                if (osPrivateProfileHandle != null) {
+                    item {
+                        Spacer(modifier = Modifier.height(24.dp))
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp)
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                .clickable { onTogglePrivateSpace(osPrivateProfileHandle) }
+                                .padding(horizontal = 16.dp, vertical = 14.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = if (isPrivateSpaceLocked) Icons.Outlined.Lock else Icons.Outlined.LockOpen,
+                                        contentDescription = "Private Space",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Text(
+                                        text = "Private Space",
+                                        style = TextStyle(
+                                            fontFamily = fontFamily,
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    )
+                                }
+
+                                if (isPrivateSpaceLocked) {
+                                    Text(
+                                        text = "Tap to unlock",
+                                        style = TextStyle(
+                                            fontFamily = fontFamily,
+                                            fontSize = 12.sp,
+                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                                        )
+                                    )
+                                } else {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
+                                            .clickable { onTogglePrivateSpace(osPrivateProfileHandle) }
+                                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Outlined.Lock,
+                                            contentDescription = "Lock Private Space",
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = "Lock",
+                                            style = TextStyle(
+                                                fontFamily = fontFamily,
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+
+                    if (!isPrivateSpaceLocked && visiblePrivateApps.isNotEmpty()) {
+                        items(visiblePrivateApps, key = { "${it.packageName}_${it.userHandle?.hashCode() ?: 0}" }) { appItem ->
+                            AppDrawerItem(
+                                appItem = appItem,
+                                fontFamily = fontFamily,
+                                onClick = { onAppClick(appItem) },
+                                onLongClick = { onAppLongClick(appItem) }
+                            )
+                        }
+                    } else if (!isPrivateSpaceLocked) {
+                        item {
+                            Text(
+                                text = "No apps in Private Space matching search.",
+                                style = TextStyle(
+                                    fontFamily = fontFamily,
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                                ),
+                                modifier = Modifier.padding(start = 12.dp, top = 8.dp, bottom = 16.dp)
+                            )
+                        }
+                    }
+                }
+
+                item {
+                    Spacer(modifier = Modifier.height(60.dp))
+                }
+            }
+
+            if (searchQuery.isBlank()) {
+                Column(
+                    modifier = Modifier
+                        .width(28.dp)
+                        .fillMaxHeight()
+                        .padding(end = 4.dp),
+                    verticalArrangement = Arrangement.SpaceEvenly,
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    alphabetList.forEach { letter ->
+                        Text(
+                            text = letter.toString(),
+                            style = TextStyle(
+                                fontFamily = fontFamily,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                            ),
+                            modifier = Modifier
+                                .clickable {
+                                    val index = visibleMainApps.indexOfFirst {
+                                        val firstChar = it.displayLabel.firstOrNull()?.uppercaseChar() ?: '#'
+                                        val targetChar = if (firstChar in 'A'..'Z') firstChar else '#'
+                                        targetChar == letter
+                                    }
+                                    if (index >= 0) {
+                                        coroutineScope.launch {
+                                            // Approximation
+                                            listState.scrollToItem(index)
+                                        }
+                                    }
+                                }
+                                .padding(vertical = 1.dp, horizontal = 4.dp)
+                        )
                     }
                 }
             }
@@ -619,7 +481,7 @@ private fun AppDrawerItem(
                 onLongClick = onLongClick
             )
             .padding(vertical = 10.dp, horizontal = 4.dp)
-            .testTag("app_item_${appItem.packageName}")
+            .testTag("app_item_${appItem.packageName}_${appItem.userHandle?.hashCode() ?: 0}")
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -655,16 +517,6 @@ private fun AppDrawerItem(
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
                         )
-                    )
-                }
-
-                if (appItem.isHidden) {
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Icon(
-                        imageVector = Icons.Outlined.VisibilityOff,
-                        contentDescription = "Hidden",
-                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
-                        modifier = Modifier.size(14.dp)
                     )
                 }
             }

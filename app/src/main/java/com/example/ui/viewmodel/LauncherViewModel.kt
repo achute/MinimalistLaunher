@@ -88,8 +88,18 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     private val _isPrivateSpaceUnlocked = MutableStateFlow(false)
     val isPrivateSpaceUnlocked = _isPrivateSpaceUnlocked.asStateFlow()
 
+    private val _osPrivateProfileHandle = MutableStateFlow<android.os.UserHandle?>(null)
+    val osPrivateProfileHandle = _osPrivateProfileHandle.asStateFlow()
+    
+    private val _isOsPrivateSpaceLocked = MutableStateFlow(true)
+    val isOsPrivateSpaceLocked = _isOsPrivateSpaceLocked.asStateFlow()
+
     val batteryStatus: StateFlow<BatteryStatus> = BatteryHelper.getBatteryStatusFlow(application)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), BatteryStatus())
+
+    val privateProfileHandle: StateFlow<android.os.UserHandle?> = _rawInstalledApps.map { apps ->
+        apps.firstOrNull { it.isPrivateProfile }?.userHandle
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     // Enriched Installed Apps with custom labels, hidden status, limit rules
     val enrichedApps: StateFlow<List<AppInfoItem>> = combine(
@@ -109,6 +119,14 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
                 dailyLimitMinutes = limitMap[appItem.packageName]
             )
         }.sortedBy { it.displayLabel.lowercase() }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val filteredApps: StateFlow<List<AppInfoItem>> = enrichedApps.map { apps ->
+        apps.filter { !it.isHidden && !it.isPrivateProfile }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val privateSpaceApps: StateFlow<List<AppInfoItem>> = enrichedApps.map { apps ->
+        apps.filter { it.isPrivateProfile }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // Active Focus Profile Apps (Max 5)
@@ -218,6 +236,11 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch(Dispatchers.IO) {
             val apps = AppManager.getInstalledApps(getApplication())
             _rawInstalledApps.value = apps
+            
+            val handle = AppManager.getPrivateProfileHandle(getApplication())
+            _osPrivateProfileHandle.value = handle
+            _isOsPrivateSpaceLocked.value = handle?.let { AppManager.isQuietModeEnabled(getApplication(), it) } ?: true
+            
             refreshUsageStats()
         }
     }
@@ -236,6 +259,20 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    fun toggleOsPrivateSpace(context: Context, handle: android.os.UserHandle) {
+        val currentlyLocked = _isOsPrivateSpaceLocked.value
+        if (currentlyLocked) {
+            AppManager.requestQuietModeEnabled(context, false, handle)
+        } else {
+            AppManager.requestQuietModeEnabled(context, true, handle)
+            _isOsPrivateSpaceLocked.value = true
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            kotlinx.coroutines.delay(200)
+            refreshInstalledApps()
+        }
+    }
+
     // Focus Profile Management
     fun selectFocusProfile(profileId: Int) {
         viewModelScope.launch {
@@ -244,6 +281,11 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             if (profile?.lockPrivateSpace != false) {
                 // Auto-lock private space when focus profile becomes active
                 _isPrivateSpaceUnlocked.value = false
+                val handle = _osPrivateProfileHandle.value
+                if (handle != null) {
+                    AppManager.requestQuietModeEnabled(getApplication(), true, handle)
+                    _isOsPrivateSpaceLocked.value = true
+                }
             }
         }
     }

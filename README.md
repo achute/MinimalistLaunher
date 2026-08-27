@@ -23,16 +23,15 @@ An offline, text-only, privacy-first minimalist Android home launcher engineered
 * **Minimalist Task Manager**: Integrated offline to-do list with priority flags, task completion toggles, and one-tap clearing of finished tasks.
 * **AppWidgetHost Integration**: Embed native system widgets (e.g., system battery or weather widgets) directly inside the launcher without needing internet access.
 
-### 4. Searchable App Drawer & Biometric Vault (Swipe Up)
+### 4. Searchable App Drawer & Native Private Space (Swipe Up)
 * **Instant Text Search**: Instant fuzzy filtering across all installed applications.
 * **Recent Apps Strip**: Quick access to recently used applications powered by Android Usage Stats.
-* **Biometric Private Space**: Hide sensitive apps inside a secure vault protected by **AndroidX BiometricPrompt** (Fingerprint / Face Unlock / PIN) and **Android KeyStore** (AES-256-GCM encryption).
+* **Native Android 15 Private Space**: Seamlessly integrates with Android 15's native Private Space user profile. Appears as a discrete pill at the bottom of the drawer, unlocking with system authentication (`UserManager.requestQuietModeEnabled()`) and collapsing/locking with a single tap.
 * **Granular App Management (Long-Press)**:
   * Pin to any Focus Profile slot.
   * Map to bottom quick-action slots.
   * Assign custom app aliases (rename app labels).
   * Configure daily screentime limits.
-  * Hide/Unhide in Private Vault.
   * Direct access to Android App Info or Uninstall.
 
 ### 5. Digital Wellbeing & App Screentime Limits

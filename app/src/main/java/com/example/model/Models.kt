@@ -72,7 +72,9 @@ data class AppInfoItem(
     val isFavorite: Boolean = false,
     val lastUsedTimestamp: Long = 0L,
     val todayUsageMillis: Long = 0L,
-    val dailyLimitMinutes: Int? = null
+    val dailyLimitMinutes: Int? = null,
+    val userHandle: android.os.UserHandle? = null,
+    val isPrivateProfile: Boolean = false
 ) {
     val displayLabel: String
         get() = customLabel?.takeIf { it.isNotBlank() } ?: label

@@ -2,7 +2,10 @@ package com.example
 
 import android.app.Activity
 import android.appwidget.AppWidgetManager
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
@@ -87,6 +90,22 @@ class MainActivity : FragmentActivity() {
     private lateinit var widgetPickerLauncher: ActivityResultLauncher<Intent>
     private lateinit var widgetConfigLauncher: ActivityResultLauncher<Intent>
 
+    private val launcherAppsCallback = object : android.content.pm.LauncherApps.Callback() {
+        override fun onPackageAdded(packageName: String, user: android.os.UserHandle) { viewModel.refreshInstalledApps() }
+        override fun onPackageChanged(packageName: String, user: android.os.UserHandle) { viewModel.refreshInstalledApps() }
+        override fun onPackageRemoved(packageName: String, user: android.os.UserHandle) { viewModel.refreshInstalledApps() }
+        override fun onPackagesAvailable(packageNames: Array<out String>, user: android.os.UserHandle, replacing: Boolean) { viewModel.refreshInstalledApps() }
+        override fun onPackagesUnavailable(packageNames: Array<out String>, user: android.os.UserHandle, replacing: Boolean) { viewModel.refreshInstalledApps() }
+        override fun onPackagesSuspended(packageNames: Array<out String>, user: android.os.UserHandle) { viewModel.refreshInstalledApps() }
+        override fun onPackagesUnsuspended(packageNames: Array<out String>, user: android.os.UserHandle) { viewModel.refreshInstalledApps() }
+    }
+
+    private val profileReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            viewModel.refreshInstalledApps()
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -154,6 +173,9 @@ class MainActivity : FragmentActivity() {
             }
         }
 
+        val launcherApps = getSystemService(Context.LAUNCHER_APPS_SERVICE) as android.content.pm.LauncherApps
+        launcherApps.registerCallback(launcherAppsCallback)
+
         setContent {
             val settings by viewModel.settings.collectAsStateWithLifecycle()
             val activeFontFamily = remember(settings.clockFont, settings.applyFontToAllUI) {
@@ -203,8 +225,23 @@ class MainActivity : FragmentActivity() {
         } catch (e: Exception) {
             // Ignore listening errors
         }
+        try {
+            val filter = IntentFilter().apply {
+                addAction(Intent.ACTION_MANAGED_PROFILE_UNLOCKED)
+                addAction(Intent.ACTION_MANAGED_PROFILE_AVAILABLE)
+                addAction(Intent.ACTION_MANAGED_PROFILE_UNAVAILABLE)
+                addAction("android.intent.action.PROFILE_ACCESSIBLE")
+                addAction("android.intent.action.PROFILE_INACCESSIBLE")
+            }
+            registerReceiver(profileReceiver, filter)
+        } catch (e: Exception) {}
         viewModel.refreshInstalledApps()
         viewModel.refreshUsageStats()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        viewModel.refreshInstalledApps()
     }
 
     override fun onStop() {
@@ -215,6 +252,15 @@ class MainActivity : FragmentActivity() {
         } catch (e: Exception) {
             // Ignore stop errors
         }
+        try {
+            unregisterReceiver(profileReceiver)
+        } catch (e: Exception) {}
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        val launcherApps = getSystemService(Context.LAUNCHER_APPS_SERVICE) as android.content.pm.LauncherApps
+        launcherApps.unregisterCallback(launcherAppsCallback)
     }
 }
 
@@ -234,6 +280,10 @@ fun LauncherRootScreen(
     val bottomSlots by viewModel.bottomSlots.collectAsStateWithLifecycle()
     val widgetSlots by viewModel.widgetSlots.collectAsStateWithLifecycle()
     val enrichedApps by viewModel.enrichedApps.collectAsStateWithLifecycle()
+    val filteredApps by viewModel.filteredApps.collectAsStateWithLifecycle()
+    val privateSpaceApps by viewModel.privateSpaceApps.collectAsStateWithLifecycle()
+    val isOsPrivateSpaceLocked by viewModel.isOsPrivateSpaceLocked.collectAsStateWithLifecycle()
+    val osPrivateProfileHandle by viewModel.osPrivateProfileHandle.collectAsStateWithLifecycle()
     val recentApps by viewModel.recentApps.collectAsStateWithLifecycle()
     val taskList by viewModel.taskItems.collectAsStateWithLifecycle()
     val batteryStatus by viewModel.batteryStatus.collectAsStateWithLifecycle()
@@ -487,7 +537,7 @@ fun LauncherRootScreen(
                             focusApps = activeFocusApps,
                             clockFont = settings.clockFont,
                             onAppClick = { appItem ->
-                                AppManager.launchApp(context, appItem.packageName)
+                                AppManager.launchApp(context, appItem.packageName, appItem.userHandle)
                             },
                             onAppLongClick = { appItem ->
                                 selectedAppForAction = appItem
@@ -531,19 +581,22 @@ fun LauncherRootScreen(
             exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
         ) {
             AppDrawerSheet(
-                allApps = enrichedApps,
+                mainApps = filteredApps,
+                privateApps = privateSpaceApps,
                 recentApps = recentApps,
                 clockFont = settings.clockFont,
-                isPrivateSpaceUnlocked = isPrivateSpaceUnlocked,
+                isPrivateSpaceLocked = isOsPrivateSpaceLocked,
+                osPrivateProfileHandle = osPrivateProfileHandle,
                 onAppClick = { appItem ->
                     isDrawerOpen = false
-                    AppManager.launchApp(context, appItem.packageName)
+                    AppManager.launchApp(context, appItem.packageName, appItem.userHandle)
                 },
                 onAppLongClick = { appItem ->
                     selectedAppForAction = appItem
                 },
-                onUnlockPrivateSpace = onTriggerBiometric,
-                onLockPrivateSpace = { viewModel.setPrivateSpaceUnlocked(false) },
+                onTogglePrivateSpace = { handle ->
+                    viewModel.toggleOsPrivateSpace(context, handle)
+                },
                 onCloseDrawer = { isDrawerOpen = false },
                 onSearchWeb = { query ->
                     isDrawerOpen = false
@@ -580,11 +633,8 @@ fun LauncherRootScreen(
                 onOpenLimit = {
                     appToSetLimit = targetApp
                 },
-                onToggleHidden = {
-                    viewModel.setAppHidden(targetApp.packageName, !targetApp.isHidden)
-                },
                 onOpenAppInfo = {
-                    AppManager.openAppSettings(context, targetApp.packageName)
+                    AppManager.openAppSettings(context, targetApp.packageName, targetApp.userHandle)
                 },
                 onUninstall = {
                     AppManager.uninstallApp(context, targetApp.packageName)

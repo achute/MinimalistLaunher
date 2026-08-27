@@ -21,8 +21,11 @@ This document provides a complete, transparent breakdown of all Android system p
 | **Usage Stats** | `android.permission.PACKAGE_USAGE_STATS` | Special App Access | Tracking daily app screen time, showing top-used apps on the dashboard, and populating recent apps. |
 | **Accessibility Service** | `android.permission.BIND_ACCESSIBILITY_SERVICE` | Special Access | Monitoring app launches in real-time to enforce user-configured daily digital wellbeing limits. |
 | **Display Over Other Apps** | `android.permission.SYSTEM_ALERT_WINDOW` | Special App Access | Displaying the block screen overlay when a daily app screentime limit is reached. |
-| **Biometric Authentication** | `android.permission.USE_BIOMETRIC` | Normal | Unlocking the encrypted Private Space / Hidden Apps vault with fingerprint, face, or device PIN. |
+| **Biometric Authentication** | `android.permission.USE_BIOMETRIC` | Normal | Unlocking biometric fallbacks and secure vaults with fingerprint, face, or device PIN. |
 | **Fingerprint (Legacy)** | `android.permission.USE_FINGERPRINT` | Normal (Legacy API) | Backward-compatible fingerprint authentication on older Android versions (API < 28). |
+| **Access Hidden Profiles** | `android.permission.ACCESS_HIDDEN_PROFILES` | System / Launcher | Detecting and accessing Android 15 native Private Space profile applications. |
+| **Modify Quiet Mode** | `android.permission.MODIFY_QUIET_MODE` | System / Launcher | Locking and unlocking the native Android 15 Private Space user profile (`UserManager.requestQuietModeEnabled`). |
+| **Manage Users** | `android.permission.MANAGE_USERS` | System / Launcher | Inspecting multi-user profile handles (`android.os.usertype.profile.PRIVATE`) on modern Android versions. |
 | **Expand Status Bar** | `android.permission.EXPAND_STATUS_BAR` | Normal | Pulling down the notification panel and quick settings via the swipe-down gesture. |
 
 ---
@@ -90,7 +93,24 @@ This document provides a complete, transparent breakdown of all Android system p
 
 ---
 
-### 6. `android.permission.EXPAND_STATUS_BAR`
+### 6. Android 15 Private Space Permissions (`ACCESS_HIDDEN_PROFILES`, `MODIFY_QUIET_MODE`, `MANAGE_USERS`)
+* **Declaration**:
+  ```xml
+  <uses-permission android:name="android.permission.ACCESS_HIDDEN_PROFILES" tools:ignore="ProtectedPermissions" />
+  <uses-permission android:name="android.permission.MODIFY_QUIET_MODE" tools:ignore="ProtectedPermissions" />
+  <uses-permission android:name="android.permission.MANAGE_USERS" tools:ignore="ProtectedPermissions" />
+  ```
+* **Category**: Launcher Integration for Native Android 15 Private Space
+* **Why the app needs them**:
+  Allows the launcher to natively interact with Android 15's built-in Private Space profile feature, just like the default Pixel Launcher.
+* **How they are used**:
+  - `ACCESS_HIDDEN_PROFILES`: Allows querying and displaying applications installed inside the OS-level Private profile when unlocked.
+  - `MODIFY_QUIET_MODE`: Invokes `UserManager.requestQuietModeEnabled()` to trigger native system lock screen authentication when unlocking, and securely enables quiet mode to re-lock the profile on command.
+  - `MANAGE_USERS`: Enables resolving the specific `UserHandle` associated with `android.os.usertype.profile.PRIVATE`.
+
+---
+
+### 7. `android.permission.EXPAND_STATUS_BAR`
 * **Declaration**: `<uses-permission android:name="android.permission.EXPAND_STATUS_BAR" />`
 * **Category**: Normal Gesture Shortcut
 * **Why the app needs it**:

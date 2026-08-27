@@ -120,7 +120,6 @@ fun AppActionDialog(
     onSetAsBottomSlot: (slotIndex: Int) -> Unit,
     onOpenRename: () -> Unit,
     onOpenLimit: () -> Unit,
-    onToggleHidden: () -> Unit,
     onOpenAppInfo: () -> Unit,
     onUninstall: () -> Unit,
     onDismiss: () -> Unit
@@ -282,18 +281,6 @@ fun AppActionDialog(
                     onClick = {
                         onDismiss()
                         onOpenLimit()
-                    }
-                )
-
-                // Hide / Encrypted Vault
-                ActionRowItem(
-                    icon = if (appItem.isHidden) Icons.Outlined.Visibility else Icons.Outlined.VisibilityOff,
-                    title = if (appItem.isHidden) "Unhide from Private Space" else "Hide into Encrypted Private Space",
-                    subtitle = if (appItem.isHidden) "Restore app to public drawer" else "Store package name encrypted with AES-GCM KeyStore",
-                    fontFamily = fontFamily,
-                    onClick = {
-                        onToggleHidden()
-                        onDismiss()
                     }
                 )
 
@@ -564,7 +551,7 @@ fun AppPickerDialog(
                 )
 
                 LazyColumn(modifier = Modifier.weight(1f)) {
-                    items(filtered, key = { it.packageName }) { app ->
+                    items(filtered, key = { "${it.packageName}_${it.userHandle?.hashCode() ?: 0}" }) { app ->
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
