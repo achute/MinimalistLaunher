@@ -130,12 +130,6 @@ app/src/main/
 ```bash
 # Assemble debug APK
 ./gradlew :app:assembleDebug
-
-# Run unit and Robolectric tests
-./gradlew :app:testDebugUnitTest
-
-# Verify screenshot regression tests (Roborazzi)
-./gradlew :app:verifyRoborazziDebug
 ```
 
 ---

@@ -592,9 +592,6 @@ fun SettingsDialog(
     onUpdateWallpaperDim: (Float) -> Unit,
     onToggleWallpaper: (Boolean) -> Unit,
     onToggleShowHomeWidgets: (Boolean) -> Unit,
-    onOpenDefaultLauncherSettings: () -> Unit,
-    onOpenUsageAccessSettings: () -> Unit,
-    onOpenAccessibilitySettings: () -> Unit,
     onSaveProfile: (FocusProfile) -> Unit,
     onDeleteProfile: (Int) -> Unit,
     onPickWeatherWidget: () -> Unit,
@@ -602,7 +599,6 @@ fun SettingsDialog(
     onImportCustomFont: (Uri) -> Result<String>,
     onClearCustomFont: () -> Unit,
     onToggleApplyFontToAllUI: (Boolean) -> Unit,
-    onTriggerBiometricTest: () -> Unit,
     onSelectSwipeUpAction: (String) -> Unit = {},
     onSelectSwipeUpPackage: (String) -> Unit = {},
     onSelectSwipeDownAction: (String) -> Unit = {},
@@ -616,7 +612,7 @@ fun SettingsDialog(
 ) {
     val context = LocalContext.current
     val fontFamily = remember(settings.clockFont) { FontManager.resolveFontFamily(context, settings.clockFont) }
-    var selectedTab by remember { mutableIntStateOf(0) } // 0: Themes & Fonts, 1: Gestures, 2: Focus Profiles, 3: Privacy & Biometric, 4: 3rd Party Licenses
+    var selectedTab by remember { mutableIntStateOf(0) } // 0: Themes & Fonts, 1: Gestures, 2: Focus Profiles, 3: 3rd Party Licenses
     var editingProfile by remember { mutableStateOf<FocusProfile?>(null) }
 
     Dialog(
@@ -690,11 +686,6 @@ fun SettingsDialog(
                     Tab(
                         selected = selectedTab == 3,
                         onClick = { selectedTab = 3 },
-                        text = { Text("PRIVACY & VAULT", style = TextStyle(fontFamily = fontFamily, fontSize = 10.sp, fontWeight = FontWeight.Bold)) }
-                    )
-                    Tab(
-                        selected = selectedTab == 4,
-                        onClick = { selectedTab = 4 },
                         text = { Text("3RD PARTY NOTICES", style = TextStyle(fontFamily = fontFamily, fontSize = 10.sp, fontWeight = FontWeight.Bold)) }
                     )
                 }
@@ -743,15 +734,7 @@ fun SettingsDialog(
                                 editingProfile = FocusProfile(id = 0, name = "New Focus", isDndLinked = false, lockPrivateSpace = true)
                             }
                         )
-                        3 -> PrivacyAndVaultTab(
-                            hasUsagePermission = hasUsagePermission,
-                            fontFamily = fontFamily,
-                            onOpenDefaultLauncherSettings = onOpenDefaultLauncherSettings,
-                            onOpenUsageAccessSettings = onOpenUsageAccessSettings,
-                            onOpenAccessibilitySettings = onOpenAccessibilitySettings,
-                            onTriggerBiometricTest = onTriggerBiometricTest
-                        )
-                        4 -> ThirdPartyLibrariesTab(
+                        3 -> ThirdPartyLibrariesTab(
                             fontFamily = fontFamily
                         )
                     }
@@ -1794,157 +1777,6 @@ private fun FocusProfileEditDialog(
             },
             onDismiss = { pickingSlotIndex = null }
         )
-    }
-}
-
-// 9. Privacy, Biometrics & Encrypted Room Vault Tab
-@Composable
-private fun PrivacyAndVaultTab(
-    hasUsagePermission: Boolean,
-    fontFamily: FontFamily,
-    onOpenDefaultLauncherSettings: () -> Unit,
-    onOpenUsageAccessSettings: () -> Unit,
-    onOpenAccessibilitySettings: () -> Unit,
-    onTriggerBiometricTest: () -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        // Zero-Network Audit Certificate
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(8.dp))
-                .background(Color(0xFF00240E))
-                .border(1.dp, Color(0xFF00FF66), RoundedCornerShape(8.dp))
-                .padding(14.dp)
-        ) {
-            Column {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Outlined.Security,
-                        contentDescription = null,
-                        tint = Color(0xFF00FF66),
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "100% ZERO-INTERNET AUDITED",
-                        style = TextStyle(
-                            fontFamily = fontFamily,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF00FF66)
-                        )
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(6.dp))
-
-                Text(
-                    text = "android.permission.INTERNET is strictly omitted from AndroidManifest.xml. Zero network sockets, zero remote telemetry, zero analytics.",
-                    style = TextStyle(
-                        fontFamily = fontFamily,
-                        fontSize = 11.sp,
-                        color = Color(0xFFE2E8F0),
-                        lineHeight = 15.sp
-                    )
-                )
-            }
-        }
-
-        // Biometrics & AES-256 GCM Storage Info
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(8.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                .border(0.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
-                .padding(14.dp)
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Outlined.Fingerprint,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "ENCRYPTED PRIVATE SPACE VAULT",
-                        style = TextStyle(
-                            fontFamily = fontFamily,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    )
-                }
-
-                Text(
-                    text = "Hidden app package identifiers are encrypted with AES-256 GCM using keys stored in the Android KeyStore before being written to the Room Database. Physical database dumps cannot reveal your hidden app list.",
-                    style = TextStyle(
-                        fontFamily = fontFamily,
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                        lineHeight = 15.sp
-                    )
-                )
-
-                Spacer(modifier = Modifier.height(4.dp))
-
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(MaterialTheme.colorScheme.primary)
-                        .clickable { onTriggerBiometricTest() }
-                        .padding(horizontal = 12.dp, vertical = 6.dp)
-                ) {
-                    Text(
-                        text = "Test Biometric Prompt (Fingerprint / PIN)",
-                        style = TextStyle(fontFamily = fontFamily, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary)
-                    )
-                }
-            }
-        }
-
-        Text(
-            text = "SYSTEM PERMISSIONS & SHORTCUTS",
-            style = TextStyle(fontFamily = fontFamily, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp, color = MaterialTheme.colorScheme.primary)
-        )
-
-        // Default Launcher
-        SystemActionCard(
-            title = "Set as Default Home Launcher",
-            subtitle = "Enable this launcher as your primary Android home screen",
-            buttonLabel = "Change Default",
-            fontFamily = fontFamily,
-            onClick = onOpenDefaultLauncherSettings
-        )
-
-        // Usage Access
-        SystemActionCard(
-            title = "Usage Access Telemetry",
-            subtitle = if (hasUsagePermission) "Granted — On-device screen time active" else "Not Granted — Required for screen time breakdown",
-            buttonLabel = if (hasUsagePermission) "Manage Access" else "Grant Access",
-            fontFamily = fontFamily,
-            onClick = onOpenUsageAccessSettings
-        )
-
-        // Accessibility Service for App Blocker
-        SystemActionCard(
-            title = "Accessibility Service (App Blocker)",
-            subtitle = "Required to detect app launches and enforce digital wellbeing screen limits",
-            buttonLabel = "Open Accessibility",
-            fontFamily = fontFamily,
-            onClick = onOpenAccessibilitySettings
-        )
-
-        Spacer(modifier = Modifier.height(20.dp))
     }
 }
 

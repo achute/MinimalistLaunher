@@ -871,9 +871,6 @@ fun LauncherRootScreen(
                 onUpdateWallpaperDim = { viewModel.setWallpaperDim(it) },
                 onToggleWallpaper = { viewModel.setWallpaperEnabled(it) },
                 onToggleShowHomeWidgets = { viewModel.setShowHomeWidgets(it) },
-                onOpenDefaultLauncherSettings = { AppManager.openDefaultLauncherSettings(context) },
-                onOpenUsageAccessSettings = { AppManager.openUsageAccessSettings(context) },
-                onOpenAccessibilitySettings = { AppManager.openAccessibilitySettings(context) },
                 onSaveProfile = { viewModel.saveFocusProfile(it) },
                 onDeleteProfile = { viewModel.deleteFocusProfile(it) },
                 onPickWeatherWidget = {
@@ -887,21 +884,6 @@ fun LauncherRootScreen(
                 onImportCustomFont = { uri -> viewModel.importCustomFont(uri) },
                 onClearCustomFont = { viewModel.clearCustomFont() },
                 onToggleApplyFontToAllUI = { viewModel.setApplyFontToAllUI(it) },
-                onTriggerBiometricTest = {
-                    (context as? FragmentActivity)?.let { activity ->
-                        BiometricAuthHelper.authenticate(
-                            activity = activity,
-                            title = "Vault Biometric Check",
-                            subtitle = "Hardware Keystore biometrics test",
-                            onSuccess = {
-                                Toast.makeText(context, "Biometrics Verified!", Toast.LENGTH_SHORT).show()
-                            },
-                            onError = { errMsg ->
-                                Toast.makeText(context, errMsg, Toast.LENGTH_SHORT).show()
-                            }
-                        )
-                    }
-                },
                 onSelectSwipeUpAction = { viewModel.setSwipeUpAction(it) },
                 onSelectSwipeUpPackage = { viewModel.setSwipeUpPackage(it) },
                 onSelectSwipeDownAction = { viewModel.setSwipeDownAction(it) },
