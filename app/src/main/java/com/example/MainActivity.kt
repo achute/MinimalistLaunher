@@ -502,17 +502,11 @@ fun LauncherRootScreen(
                             topUsageApps = topUsageApps,
                             hasUsagePermission = hasUsagePermission,
                             taskList = taskList,
-                            onToggleBatteryWidgetMode = {
-                                viewModel.setUseBatteryWidget(!settings.useBatteryWidget)
+                            onPickWidget = { slotKey ->
+                                onStartWidgetPick(slotKey)
                             },
-                            onPickBatteryWidget = {
-                                onStartWidgetPick(AppWidgetHostManager.SLOT_UTILITY_BATTERY)
-                            },
-                            onRemoveBatteryWidget = {
-                                val slot = widgetSlots.find { it.slotKey == AppWidgetHostManager.SLOT_UTILITY_BATTERY }
-                                if (slot != null) {
-                                    viewModel.removeWidgetSlot(AppWidgetHostManager.SLOT_UTILITY_BATTERY, slot.appWidgetId)
-                                }
+                            onRemoveWidget = { slotKey, appWidgetId ->
+                                viewModel.removeWidgetSlot(slotKey, appWidgetId)
                             },
                             onRequestUsagePermission = {
                                 AppManager.openUsageAccessSettings(context)
@@ -625,14 +619,11 @@ fun LauncherRootScreen(
                                 appWidgetHost = app.appWidgetHost,
                                 onSelectProfile = { viewModel.selectFocusProfile(it) },
                                 onManageProfiles = { isSettingsOpen = true },
-                                onPickWeatherWidget = {
-                                    onStartWidgetPick(AppWidgetHostManager.SLOT_HEADER_WEATHER)
+                                onPickWidget = { slotKey ->
+                                    onStartWidgetPick(slotKey)
                                 },
-                                onRemoveWeatherWidget = {
-                                    val slot = widgetSlots.find { it.slotKey == AppWidgetHostManager.SLOT_HEADER_WEATHER }
-                                    if (slot != null) {
-                                        viewModel.removeWidgetSlot(AppWidgetHostManager.SLOT_HEADER_WEATHER, slot.appWidgetId)
-                                    }
+                                onRemoveWidget = { slotKey, appWidgetId ->
+                                    viewModel.removeWidgetSlot(slotKey, appWidgetId)
                                 }
                             )
 
@@ -879,6 +870,7 @@ fun LauncherRootScreen(
                 onToggleShowDate = { viewModel.setShowDate(it) },
                 onUpdateWallpaperDim = { viewModel.setWallpaperDim(it) },
                 onToggleWallpaper = { viewModel.setWallpaperEnabled(it) },
+                onToggleShowHomeWidgets = { viewModel.setShowHomeWidgets(it) },
                 onOpenDefaultLauncherSettings = { AppManager.openDefaultLauncherSettings(context) },
                 onOpenUsageAccessSettings = { AppManager.openUsageAccessSettings(context) },
                 onOpenAccessibilitySettings = { AppManager.openAccessibilitySettings(context) },

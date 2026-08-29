@@ -591,6 +591,7 @@ fun SettingsDialog(
     onToggleShowDate: (Boolean) -> Unit,
     onUpdateWallpaperDim: (Float) -> Unit,
     onToggleWallpaper: (Boolean) -> Unit,
+    onToggleShowHomeWidgets: (Boolean) -> Unit,
     onOpenDefaultLauncherSettings: () -> Unit,
     onOpenUsageAccessSettings: () -> Unit,
     onOpenAccessibilitySettings: () -> Unit,
@@ -712,6 +713,7 @@ fun SettingsDialog(
                             onToggleShowDate = onToggleShowDate,
                             onUpdateWallpaperDim = onUpdateWallpaperDim,
                             onToggleWallpaper = onToggleWallpaper,
+                            onToggleShowHomeWidgets = onToggleShowHomeWidgets,
                             onImportCustomFont = onImportCustomFont,
                             onClearCustomFont = onClearCustomFont,
                             onToggleApplyFontToAllUI = onToggleApplyFontToAllUI
@@ -1105,6 +1107,7 @@ private fun AppearanceAndFontsTab(
     onToggleShowDate: (Boolean) -> Unit,
     onUpdateWallpaperDim: (Float) -> Unit,
     onToggleWallpaper: (Boolean) -> Unit,
+    onToggleShowHomeWidgets: (Boolean) -> Unit,
     onImportCustomFont: (Uri) -> Result<String>,
     onClearCustomFont: () -> Unit,
     onToggleApplyFontToAllUI: (Boolean) -> Unit
@@ -1397,6 +1400,12 @@ private fun AppearanceAndFontsTab(
                 checked = settings.isWallpaperEnabled,
                 fontFamily = fontFamily,
                 onCheckedChange = onToggleWallpaper
+            )
+            SettingSwitchRow(
+                title = "Show Widgets on Home Screen",
+                checked = settings.showHomeWidgets,
+                fontFamily = fontFamily,
+                onCheckedChange = onToggleShowHomeWidgets
             )
 
             if (settings.isWallpaperEnabled) {

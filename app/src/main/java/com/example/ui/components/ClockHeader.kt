@@ -60,8 +60,8 @@ fun ClockHeader(
     appWidgetHost: AppWidgetHost,
     onSelectProfile: (Int) -> Unit,
     onManageProfiles: () -> Unit,
-    onPickWeatherWidget: () -> Unit,
-    onRemoveWeatherWidget: () -> Unit,
+    onPickWidget: (slotKey: String) -> Unit,
+    onRemoveWidget: (slotKey: String, appWidgetId: Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var currentTime by remember { mutableStateOf(Date()) }
@@ -261,57 +261,67 @@ fun ClockHeader(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Weather Slot / Embedded 3rd Party Widget
-        if (weatherSlot != null && weatherSlot.appWidgetId != -1) {
-            EmbeddedWidgetView(
-                appWidgetId = weatherSlot.appWidgetId,
-                appWidgetHost = appWidgetHost,
-                slotTitle = "Weather Widget",
-                minHeight = 84.dp,
-                onPickWidget = onPickWeatherWidget,
-                onRemoveWidget = onRemoveWeatherWidget,
-                modifier = Modifier.padding(top = 4.dp)
-            )
-        } else {
-            // Optional minimal weather or widget attach prompt
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(8.dp))
-                    .border(
-                        0.5.dp,
-                        MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
-                        RoundedCornerShape(8.dp)
-                    )
-                    .clickable { onPickWeatherWidget() }
-                    .padding(vertical = 10.dp, horizontal = 14.dp)
-                    .testTag("weather_widget_slot_prompt"),
-                contentAlignment = Alignment.CenterStart
+        // Home Widgets
+        if (settings.showHomeWidgets) {
+            val homeWidgets = widgetSlots.filter { it.slotKey.startsWith("HOME_WIDGET_") || it.slotKey == AppWidgetHostManager.SLOT_HEADER_WEATHER }
+            
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    modifier = Modifier.fillMaxWidth()
+                homeWidgets.forEach { slot ->
+                    if (slot.appWidgetId != -1) {
+                        EmbeddedWidgetView(
+                            appWidgetId = slot.appWidgetId,
+                            appWidgetHost = appWidgetHost,
+                            slotTitle = "Widget",
+                            minHeight = 160.dp, // Increased area
+                            onPickWidget = {},
+                            onRemoveWidget = { onRemoveWidget(slot.slotKey, slot.appWidgetId) }
+                        )
+                    }
+                }
+                
+                // Add widget button
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .border(
+                            0.5.dp,
+                            MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+                            RoundedCornerShape(8.dp)
+                        )
+                        .clickable { onPickWidget("HOME_WIDGET_${System.currentTimeMillis()}") }
+                        .padding(vertical = 10.dp, horizontal = 14.dp)
+                        .testTag("add_home_widget_button"),
+                    contentAlignment = Alignment.CenterStart
                 ) {
-                    Text(
-                        text = "WEATHER: OFFLINE NATIVE WIDGET",
-                        style = TextStyle(
-                            fontFamily = clockFontFamily,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Medium,
-                            letterSpacing = 1.sp,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "ADD HOME WIDGET",
+                            style = TextStyle(
+                                fontFamily = clockFontFamily,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium,
+                                letterSpacing = 1.sp,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                            )
                         )
-                    )
-                    Text(
-                        text = "[+ ATTACH]",
-                        style = TextStyle(
-                            fontFamily = clockFontFamily,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
+                        Text(
+                            text = "[+ ATTACH]",
+                            style = TextStyle(
+                                fontFamily = clockFontFamily,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
                         )
-                    )
+                    }
                 }
             }
         }

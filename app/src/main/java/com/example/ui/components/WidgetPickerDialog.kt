@@ -114,65 +114,86 @@ fun WidgetProviderItem(
     onClick: () -> Unit
 ) {
     var iconDrawable by remember { mutableStateOf<Drawable?>(null) }
+    var previewDrawable by remember { mutableStateOf<Drawable?>(null) }
 
     LaunchedEffect(info) {
         withContext(Dispatchers.IO) {
             iconDrawable = info.loadIcon(context, context.resources.displayMetrics.densityDpi)
+            previewDrawable = info.loadPreviewImage(context, context.resources.displayMetrics.densityDpi)
         }
     }
 
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(vertical = 12.dp, horizontal = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(vertical = 12.dp, horizontal = 8.dp)
     ) {
-        if (iconDrawable != null) {
-            val bitmap = remember(iconDrawable) {
-                try {
-                    iconDrawable!!.toBitmap(config = android.graphics.Bitmap.Config.ARGB_8888).asImageBitmap()
-                } catch (e: Exception) {
-                    null
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (iconDrawable != null) {
+                val bitmap = remember(iconDrawable) {
+                    try {
+                        iconDrawable!!.toBitmap(config = android.graphics.Bitmap.Config.ARGB_8888).asImageBitmap()
+                    } catch (e: Exception) {
+                        null
+                    }
                 }
-            }
-            if (bitmap != null) {
-                Image(
-                    bitmap = bitmap,
-                    contentDescription = null,
-                    modifier = Modifier.size(48.dp)
-                )
+                if (bitmap != null) {
+                    Image(
+                        bitmap = bitmap,
+                        contentDescription = null,
+                        modifier = Modifier.size(36.dp)
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Outlined.Widgets,
+                        contentDescription = null,
+                        modifier = Modifier.size(36.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
             } else {
                 Icon(
                     imageVector = Icons.Outlined.Widgets,
                     contentDescription = null,
-                    modifier = Modifier.size(48.dp),
+                    modifier = Modifier.size(36.dp),
                     tint = MaterialTheme.colorScheme.primary
                 )
             }
-        } else {
-            Icon(
-                imageVector = Icons.Outlined.Widgets,
-                contentDescription = null,
-                modifier = Modifier.size(48.dp),
-                tint = MaterialTheme.colorScheme.primary
-            )
+            
+            Spacer(modifier = Modifier.width(12.dp))
+            
+            Column {
+                Text(
+                    text = info.loadLabel(context.packageManager),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = "${info.provider.packageName} • ${info.minWidth}x${info.minHeight} dp",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
-
-        Spacer(modifier = Modifier.width(16.dp))
         
-        Column {
-            Text(
-                text = info.loadLabel(context.packageManager),
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            // Can add preview image size here or app name
-            Text(
-                text = info.provider.packageName,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+        if (previewDrawable != null) {
+            val previewBitmap = remember(previewDrawable) {
+                try {
+                    previewDrawable!!.toBitmap(config = android.graphics.Bitmap.Config.ARGB_8888).asImageBitmap()
+                } catch (e: Exception) {
+                    null
+                }
+            }
+            if (previewBitmap != null) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Image(
+                    bitmap = previewBitmap,
+                    contentDescription = "Widget Preview",
+                    modifier = Modifier.fillMaxWidth().height(120.dp),
+                    alignment = Alignment.Center
+                )
+            }
         }
     }
 }

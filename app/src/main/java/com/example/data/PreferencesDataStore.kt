@@ -47,7 +47,7 @@ data class LauncherSettings(
     val activeProfileId: Int = 1,
     val lockPrivateSpaceWithFocus: Boolean = true,
     val showBatteryInUtility: Boolean = true,
-    val useBatteryWidget: Boolean = false,
+    val showHomeWidgets: Boolean = true,
     val searchEnginePackage: String = "",
     val swipeUpAction: String = "apps", // "apps", "browser", "utility", "search", "camera", "phone", "messages", "notifications", "settings", "custom", "none"
     val swipeUpPackage: String = "",
@@ -74,7 +74,7 @@ class PreferencesManager(private val context: Context) {
         val ACTIVE_PROFILE_ID = intPreferencesKey("active_profile_id")
         val LOCK_PRIVATE_SPACE_WITH_FOCUS = booleanPreferencesKey("lock_private_space_with_focus")
         val SHOW_BATTERY_IN_UTILITY = booleanPreferencesKey("show_battery_in_utility")
-        val USE_BATTERY_WIDGET = booleanPreferencesKey("use_battery_widget")
+        val SHOW_HOME_WIDGETS = booleanPreferencesKey("show_home_widgets")
         val SEARCH_ENGINE_PACKAGE = stringPreferencesKey("search_engine_package")
         val SWIPE_UP_ACTION = stringPreferencesKey("swipe_up_action")
         val SWIPE_UP_PACKAGE = stringPreferencesKey("swipe_up_package")
@@ -103,7 +103,7 @@ class PreferencesManager(private val context: Context) {
             activeProfileId = preferences[Keys.ACTIVE_PROFILE_ID] ?: 1,
             lockPrivateSpaceWithFocus = preferences[Keys.LOCK_PRIVATE_SPACE_WITH_FOCUS] ?: true,
             showBatteryInUtility = preferences[Keys.SHOW_BATTERY_IN_UTILITY] ?: true,
-            useBatteryWidget = preferences[Keys.USE_BATTERY_WIDGET] ?: false,
+            showHomeWidgets = preferences[Keys.SHOW_HOME_WIDGETS] ?: true,
             searchEnginePackage = preferences[Keys.SEARCH_ENGINE_PACKAGE] ?: "",
             swipeUpAction = preferences[Keys.SWIPE_UP_ACTION] ?: "apps",
             swipeUpPackage = preferences[Keys.SWIPE_UP_PACKAGE] ?: "",
@@ -160,8 +160,8 @@ class PreferencesManager(private val context: Context) {
         context.dataStore.edit { it[Keys.LOCK_PRIVATE_SPACE_WITH_FOCUS] = lock }
     }
 
-    suspend fun updateUseBatteryWidget(useWidget: Boolean) {
-        context.dataStore.edit { it[Keys.USE_BATTERY_WIDGET] = useWidget }
+    suspend fun updateShowHomeWidgets(show: Boolean) {
+        context.dataStore.edit { it[Keys.SHOW_HOME_WIDGETS] = show }
     }
 
     suspend fun updateSearchEnginePackage(pkg: String) {

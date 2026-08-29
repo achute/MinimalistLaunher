@@ -82,9 +82,8 @@ fun UtilityDashboard(
     topUsageApps: List<DailyAppUsage>,
     hasUsagePermission: Boolean,
     taskList: List<TaskItem>,
-    onToggleBatteryWidgetMode: () -> Unit,
-    onPickBatteryWidget: () -> Unit,
-    onRemoveBatteryWidget: () -> Unit,
+    onPickWidget: (slotKey: String) -> Unit,
+    onRemoveWidget: (slotKey: String, appWidgetId: Int) -> Unit,
     onRequestUsagePermission: () -> Unit,
     onAddTask: (String) -> Unit,
     onToggleTask: (TaskItem) -> Unit,
@@ -164,10 +163,15 @@ fun UtilityDashboard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
+                        val batteryColor = when {
+                            batteryStatus.level <= 20 -> Color(0xFFFF4444)
+                            batteryStatus.level <= 50 -> Color(0xFFFFBB33)
+                            else -> MaterialTheme.colorScheme.primary
+                        }
                         Icon(
                             imageVector = if (batteryStatus.isCharging) Icons.Outlined.BatteryChargingFull else Icons.Outlined.BatteryFull,
                             contentDescription = "Battery",
-                            tint = if (batteryStatus.level <= 20) Color(0xFFFF4444) else MaterialTheme.colorScheme.primary,
+                            tint = batteryColor,
                             modifier = Modifier.size(18.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
@@ -182,86 +186,43 @@ fun UtilityDashboard(
                             )
                         )
                     }
-
-                    // Mode switch (Text Monitor vs Widget)
-                    Row(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .clickable { onToggleBatteryWidgetMode() }
-                            .padding(horizontal = 6.dp, vertical = 3.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.SwapHoriz,
-                            contentDescription = "Toggle Widget/Text Mode",
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = if (settings.useBatteryWidget) "WIDGET MODE" else "TEXT STATS",
-                            style = TextStyle(
-                                fontFamily = fontFamily,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        )
-                    }
                 }
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                if (settings.useBatteryWidget) {
-                    // Third-party Battery AppWidget via AppWidgetHost
-                    if (batterySlot != null && batterySlot.appWidgetId != -1) {
-                        EmbeddedWidgetView(
-                            appWidgetId = batterySlot.appWidgetId,
-                            appWidgetHost = appWidgetHost,
-                            slotTitle = "Battery Widget",
-                            minHeight = 80.dp,
-                            onPickWidget = onPickBatteryWidget,
-                            onRemoveWidget = onRemoveBatteryWidget
+                // Built-in Clean Minimalist Text Battery Monitor
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Bottom
+                ) {
+                    Column {
+                        val percentageColor = when {
+                            batteryStatus.level <= 20 -> Color(0xFFFF5555)
+                            batteryStatus.level <= 50 -> Color(0xFFFFBB33)
+                            else -> MaterialTheme.colorScheme.onBackground
+                        }
+                        Text(
+                            text = "${batteryStatus.level}%",
+                            style = TextStyle(
+                                fontFamily = fontFamily,
+                                fontSize = 32.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = percentageColor
+                            ),
+                            modifier = Modifier.testTag("battery_percentage_text")
                         )
-                    } else {
-                        EmbeddedWidgetView(
-                            appWidgetId = -1,
-                            appWidgetHost = appWidgetHost,
-                            slotTitle = "3rd-Party Battery Widget",
-                            minHeight = 60.dp,
-                            onPickWidget = onPickBatteryWidget,
-                            onRemoveWidget = {}
+                        Text(
+                            text = batteryStatus.chargingSource.uppercase(),
+                            style = TextStyle(
+                                fontFamily = fontFamily,
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.primary
+                            )
                         )
                     }
-                } else {
-                    // Built-in Clean Minimalist Text Battery Monitor
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.Bottom
-                    ) {
-                        Column {
-                            Text(
-                                text = "${batteryStatus.level}%",
-                                style = TextStyle(
-                                    fontFamily = fontFamily,
-                                    fontSize = 32.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (batteryStatus.level <= 20) Color(0xFFFF5555) else MaterialTheme.colorScheme.onBackground
-                                ),
-                                modifier = Modifier.testTag("battery_percentage_text")
-                            )
-                            Text(
-                                text = batteryStatus.chargingSource.uppercase(),
-                                style = TextStyle(
-                                    fontFamily = fontFamily,
-                                    fontSize = 11.sp,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            )
-                        }
 
-                        Column(horizontalAlignment = Alignment.End) {
+                    Column(horizontalAlignment = Alignment.End) {
                             Text(
                                 text = "TEMP: ${String.format("%.1f", batteryStatus.temperatureCelsius)}°C",
                                 style = TextStyle(
@@ -290,7 +251,6 @@ fun UtilityDashboard(
                     }
                 }
             }
-        }
 
         // Section 3: App Usage Breakdown (Digital Wellbeing)
         item {
@@ -598,6 +558,73 @@ fun UtilityDashboard(
                                 }
                             }
                         }
+                    }
+                }
+            }
+        }
+
+        // Section 5: Custom Widgets
+        item {
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            val utilityWidgets = widgetSlots.filter { it.slotKey.startsWith("UTILITY_WIDGET_") }
+            
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                utilityWidgets.forEach { slot ->
+                    if (slot.appWidgetId != -1) {
+                        EmbeddedWidgetView(
+                            appWidgetId = slot.appWidgetId,
+                            appWidgetHost = appWidgetHost,
+                            slotTitle = "Utility Widget",
+                            minHeight = 120.dp,
+                            onPickWidget = {},
+                            onRemoveWidget = { onRemoveWidget(slot.slotKey, slot.appWidgetId) }
+                        )
+                    }
+                }
+                
+                // Add widget button
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .border(
+                            0.5.dp,
+                            MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+                            RoundedCornerShape(8.dp)
+                        )
+                        .clickable { onPickWidget("UTILITY_WIDGET_${System.currentTimeMillis()}") }
+                        .padding(vertical = 10.dp, horizontal = 14.dp)
+                        .testTag("add_utility_widget_button"),
+                    contentAlignment = Alignment.CenterStart
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "ADD WIDGET TO UTILITY PANE",
+                            style = TextStyle(
+                                fontFamily = fontFamily,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium,
+                                letterSpacing = 1.sp,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                            )
+                        )
+                        Text(
+                            text = "[+ ATTACH]",
+                            style = TextStyle(
+                                fontFamily = fontFamily,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        )
                     }
                 }
             }

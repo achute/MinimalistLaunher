@@ -578,8 +578,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch { prefManager.updateLockPrivateSpaceWithFocus(lock) }
     }
 
-    fun setUseBatteryWidget(useWidget: Boolean) {
-        viewModelScope.launch { prefManager.updateUseBatteryWidget(useWidget) }
+    fun setShowHomeWidgets(show: Boolean) {
+        viewModelScope.launch { prefManager.updateShowHomeWidgets(show) }
     }
 
     fun setSwipeUpAction(action: String) {
