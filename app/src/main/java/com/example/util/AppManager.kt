@@ -9,6 +9,8 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.provider.MediaStore
 import android.provider.Settings
+import android.provider.Telephony
+import android.telecom.TelecomManager
 import android.widget.Toast
 import com.example.model.AppInfoItem
 
@@ -197,16 +199,43 @@ object AppManager {
         }
     }
 
+    @SuppressLint("MissingPermission")
     fun launchDefaultAction(context: Context, type: String): Boolean {
         if (type.equals("browser", ignoreCase = true)) {
             return launchBrowser(context)
         }
         return try {
-            val intent = when (type.lowercase()) {
-                "phone", "dialer" -> Intent(Intent.ACTION_DIAL)
-                "messages", "sms" -> Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:"))
-                "camera" -> Intent(MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA)
-                else -> null
+            val pm = context.packageManager
+            var intent: Intent? = null
+
+            when (type.lowercase()) {
+                "phone", "dialer" -> {
+                    val telecomManager = context.getSystemService(Context.TELECOM_SERVICE) as? TelecomManager
+                    val dialerPackage = telecomManager?.defaultDialerPackage
+                    if (dialerPackage != null) {
+                        intent = pm.getLaunchIntentForPackage(dialerPackage)
+                    }
+                    if (intent == null) {
+                        intent = Intent(Intent.ACTION_DIAL)
+                    }
+                }
+                "messages", "sms" -> {
+                    val smsPackage = Telephony.Sms.getDefaultSmsPackage(context)
+                    if (smsPackage != null) {
+                        intent = pm.getLaunchIntentForPackage(smsPackage)
+                    }
+                    if (intent == null) {
+                        intent = Intent(Intent.ACTION_MAIN).apply {
+                            addCategory(Intent.CATEGORY_APP_MESSAGING)
+                        }
+                    }
+                    if (intent.resolveActivity(pm) == null) {
+                        intent = Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:"))
+                    }
+                }
+                "camera" -> {
+                    intent = Intent(MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA)
+                }
             }
 
             if (intent != null) {
